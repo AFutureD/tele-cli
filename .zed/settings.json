@@ -1,0 +1,27 @@
+// Folder-specific settings
+//
+// For a full list of overridable settings, and general information on folder-specific settings,
+// see the documentation: https://zed.dev/docs/configuring-zed#settings-files
+{
+  "languages": {
+    "Python": {
+      "language_servers": ["ty", "!basepyright"],
+      "formatter": {
+        "external": {
+          "command": "uv",
+          "arguments": ["run", "ruff", "format", "-"],
+        },
+      },
+      "format_on_save": "on",
+    },
+  },
+  "lsp": {
+    "ruff": {
+      "initialization_options": {
+        "settings": {
+          "exclude": ["*"],
+        },
+      },
+    },
+  },
+}

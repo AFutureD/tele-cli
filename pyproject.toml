@@ -1,0 +1,35 @@
+[project]
+name = "tele-cli"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pathlib>=1.0.1",
+    "rich>=14.3.1",
+    "telethon>=1.42.0",
+    "toon-format>=0.9.0b1",
+    "typer>=0.21.1",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.408",
+    "pytest>=9.0.2",
+    "ruff>=0.14.14",
+    "ty>=0.0.14",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.28,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = ["tele_cli"]
+source-exclude = ["tests/**/*"]
+
+[tool.uv.sources]
+tele-cli = { workspace = true }
+
+[project.scripts]
+tele-cli = "tele_cli.cli:cli"
