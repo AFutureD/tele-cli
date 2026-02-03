@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import telethon
 from telethon import TelegramClient
 from telethon.sessions import SQLiteSession
@@ -13,6 +14,11 @@ class TGClient(TelegramClient):
         if not self.is_connected():
             await self.connect()
         return self
+
+    async def async_start(self) -> None:
+        result = self.start()
+        if inspect.isawaitable(result):
+            await result
 
     def __aenter__(self):
         """

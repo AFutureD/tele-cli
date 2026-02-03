@@ -3,6 +3,7 @@ from pathlib import Path
 
 import typer
 from rich import print
+from telethon.tl.types import User
 
 from tele_cli import utils
 from tele_cli.app import TeleCLI
@@ -21,7 +22,6 @@ def auth_login(ctx: typer.Context):
     config_file: Path | None = ctx.obj["config_file"]
     session: str = ctx.obj["session"]
 
-    # TODO: custom login process
     async def _run() -> bool:
         app = await TeleCLI.create(
             session=session,
@@ -30,12 +30,16 @@ def auth_login(ctx: typer.Context):
         )
 
         try:
-            me = await app.get_me()
+            async with app.client() as client:
+                # TODO: custom login process
+                await client.async_start()
+                me = await client.get_me()
         except KeyboardInterrupt:
             session_ensure_current_valid(session=None)
             return False
 
-        if not me:
+        if not me or not isinstance(me, User):
+            session_ensure_current_valid(session=None)
             return False
 
         session_ensure_current_valid(session=app.client().session)
