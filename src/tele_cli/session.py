@@ -10,10 +10,19 @@ from tele_cli.shared import get_app_user_defualt_dir
 from .types import CurrentSessionPathNotValidError
 from .types.session import SessionInfo
 
+
 class TGSession(SQLiteSession):
     def get_possible_user_entity(self) -> tuple[int, str, int, str]:
-        return self._execute('select id, username, phone, name from entities where id > 0 ORDER BY date ASC limit 1')
+        """
+        Treat the earliest entity as a user.
+        IDs greater than 0 indicate a user.
 
+        :return: tuple of possible user entity
+        """
+
+        return self._execute(
+            "select id, username, phone, name from entities where id > 0 ORDER BY date ASC limit 1"
+        )
 
 
 def get_app_session_folder() -> Path:
@@ -76,10 +85,18 @@ def session_ensure_current_valid(session: object = None) -> None:
 
     path.symlink_to(session_path)
 
+
 async def get_session_info(session_path: Path) -> SessionInfo | None:
     session = TGSession(str(session_path))
     id, username, phone, name = session.get_possible_user_entity()
-    return SessionInfo(session_name=session_path.stem, user_id=id, user_name=username, user_phone=phone, user_display_name=name)
+    return SessionInfo(
+        session_name=session_path.stem,
+        user_id=id,
+        user_name=username,
+        user_phone=phone,
+        user_display_name=name,
+    )
+
 
 async def list_session_info() -> list[SessionInfo]:
     folder = get_app_session_folder()
@@ -91,4 +108,6 @@ async def list_session_info() -> list[SessionInfo]:
     session_info_list = await asyncio.gather(
         *(get_session_info(session_path) for session_path in session_path_list)
     )
-    return [session_info for session_info in session_info_list if session_info is not None]
+    return [
+        session_info for session_info in session_info_list if session_info is not None
+    ]
