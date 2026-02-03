@@ -53,7 +53,7 @@ def main(
 
 
 @cli.command(name="me")
-def me_get(ctx: typer.Context):
+def me_get(ctx: typer.Context) -> None:
     output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.json
     config_file: Path | None = ctx.obj["config_file"]
 
@@ -61,8 +61,8 @@ def me_get(ctx: typer.Context):
         app = await TeleCLI.create(
             session=None, config=load_config(config_file=config_file)
         )
-        me = await app.get_me()
 
+        me = await app.get_me()
         if not me:
             return False
 

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import inspect
+from typing import Callable
+
 import telethon
 from telethon import TelegramClient
 from telethon.sessions import SQLiteSession
 
 from . import types
-from .session import load_session
+from .session import load_session, session_ensure_current_valid
 
 
 class TGClient(TelegramClient):
@@ -15,8 +17,13 @@ class TGClient(TelegramClient):
             await self.connect()
         return self
 
-    async def async_start(self) -> None:
-        result = self.start()
+    async def async_start(
+        self,
+        phone: Callable[[], str],
+        code: Callable[[], str | int],
+        password: Callable[[], str]
+    ) -> None:
+        result = self.start(phone=phone, password=password, code_callback=code)
         if inspect.isawaitable(result):
             await result
 
@@ -58,4 +65,23 @@ class TeleCLI:
         async with self.client() as client:
             me = await client.get_me()
             await self.client().log_out()
+            session_ensure_current_valid(session=None)
             return me if isinstance(me, telethon.types.User) else None
+
+    async def login(
+        self,
+        phone: Callable[[], str],
+        code: Callable[[], str],
+        password: Callable[[], str]
+    ) -> telethon.types.User | None:
+        try:
+            async with self.client() as client:
+                await client.async_start(phone=phone, code=code, password=password)
+                me = await client.get_me()
+
+                session_ensure_current_valid(session=client.session)
+
+                return me if isinstance(me, telethon.types.User) else None
+
+        except KeyboardInterrupt:
+            session_ensure_current_valid(session=None)

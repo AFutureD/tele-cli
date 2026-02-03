@@ -3,12 +3,10 @@ from pathlib import Path
 
 import typer
 from rich import print
-from telethon.tl.types import User
 
 from tele_cli import utils
 from tele_cli.app import TeleCLI
 from tele_cli.config import load_config
-from tele_cli.session import session_ensure_current_valid
 from tele_cli.types import OutputFormat
 
 auth_cli = typer.Typer(
@@ -22,6 +20,30 @@ def auth_login(ctx: typer.Context):
     config_file: Path | None = ctx.obj["config_file"]
     session: str = ctx.obj["session"]
 
+    def get_phone() -> str:
+
+        print("""
+        Telegram login requires your phone number.
+        
+        1. Enter your Telegram phone number with [bold green]country code[/bold green].
+        2. Telegram will send a [bold green]login[/bold green] code to your Telegram app (from the official [bold red]Telegram account[/bold red]).
+        3. Enter that [bold green]code[/bold green] in the next step.
+        4. Your [bold green]password[/bold green] will be asked, if Two-Step Verification is enabled (Settings → Privacy and Security).  
+        
+        [bold red]IMPORTANT: Your input will not be stored or shared.[/bold red]
+        
+        Example: 8615306541234
+
+        """)
+
+        return typer.prompt("Please enter phone number", type=str)
+
+    def get_code() -> str:
+        return typer.prompt("Please enter login code", type=str)
+
+    def get_password() -> str:
+        return typer.prompt("Please enter your password", type=str, hide_input=True)
+
     async def _run() -> bool:
         app = await TeleCLI.create(
             session=session,
@@ -29,20 +51,9 @@ def auth_login(ctx: typer.Context):
             with_current=False,
         )
 
-        try:
-            async with app.client() as client:
-                # TODO: custom login process
-                await client.async_start()
-                me = await client.get_me()
-        except KeyboardInterrupt:
-            session_ensure_current_valid(session=None)
+        me = await app.login(phone=get_phone, code=get_code, password=get_password)
+        if not me:
             return False
-
-        if not me or not isinstance(me, User):
-            session_ensure_current_valid(session=None)
-            return False
-
-        session_ensure_current_valid(session=app.client().session)
 
         print(f"Hi {utils.fmt.format_me(me, OutputFormat.text)}")
         return True
@@ -66,9 +77,6 @@ def auth_logout(ctx: typer.Context):
         me = await app.logout()
         if me:
             print(f"Bye {utils.fmt.format_me(me, OutputFormat.text)}")
-
-        session_ensure_current_valid(session=None)
-
         return True
 
     ok = asyncio.run(_run())
