@@ -5,6 +5,7 @@ import toon_format
 from telethon.tl.tlobject import _json_default
 
 from tele_cli.types import OutputFormat
+from tele_cli.types.session import SessionInfo
 
 
 def format_me(me: telethon.types.User, fmt: None | OutputFormat = None) -> str:
@@ -37,3 +38,15 @@ def format_dialog_list(
             return json.dumps(obj_list, default=_json_default)
         case OutputFormat.toon:
             raise NotImplementedError("Not Supported Format For Dialog")
+
+def format_session_info_list(session_info_list: list[SessionInfo], fmt: None | OutputFormat = None) -> str:
+    fmt: OutputFormat = fmt or OutputFormat.json
+
+    match fmt:
+        case OutputFormat.text:
+            return '\n'.join([f"{obj.user_display_name}(@{obj.user_name}) {obj.session_name}" for obj in session_info_list])
+        case OutputFormat.json:
+            obj_list = [item.model_dump(mode='json') for item in session_info_list]
+            return json.dumps(obj_list, ensure_ascii=False)
+        case OutputFormat.toon:
+            raise NotImplementedError("Not Supported Format For SessionInfo List")

@@ -5,10 +5,9 @@ from typing import Callable
 
 import telethon
 from telethon import TelegramClient
-from telethon.sessions import SQLiteSession
 
 from . import types
-from .session import load_session, session_ensure_current_valid
+from .session import load_session, session_ensure_current_valid, TGSession
 
 
 class TGClient(TelegramClient):
@@ -40,7 +39,7 @@ class TeleCLI:
     async def create(
         session: str | None, config: types.Config, with_current: bool = True
     ) -> TeleCLI:
-        session: SQLiteSession = load_session(session, with_current=with_current)
+        session: TGSession = load_session(session, with_current=with_current)
 
         client = TGClient(
             session=session,

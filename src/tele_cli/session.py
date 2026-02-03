@@ -1,11 +1,19 @@
+import asyncio
 import uuid
 from pathlib import Path
 
 from telethon.sessions import SQLiteSession
+from telethon.tl.types import User
 
 from tele_cli.shared import get_app_user_defualt_dir
 
 from .types import CurrentSessionPathNotValidError
+from .types.session import SessionInfo
+
+class TGSession(SQLiteSession):
+    def get_possible_user_entity(self) -> tuple[int, str, int, str]:
+        return self._execute('select id, username, phone, name from entities where id > 0 ORDER BY date ASC limit 1')
+
 
 
 def get_app_session_folder() -> Path:
@@ -29,11 +37,11 @@ def _get_session_path(session_name: str | None, with_current: bool) -> Path:
     return get_app_session_folder() / str(uuid.uuid4())
 
 
-def load_session(session_name: str | None, with_current: bool = True) -> SQLiteSession:
+def load_session(session_name: str | None, with_current: bool = True) -> TGSession:
     session_path = _get_session_path(
         session_name=session_name, with_current=with_current
     )
-    return SQLiteSession(str(session_path))
+    return TGSession(str(session_path))
 
 
 def session_ensure_current_valid(session: object = None) -> None:
@@ -57,7 +65,7 @@ def session_ensure_current_valid(session: object = None) -> None:
     # force unlink
     path.unlink(missing_ok=True)
 
-    if not isinstance(session, SQLiteSession):
+    if not isinstance(session, TGSession):
         return
 
     # before perform create the symlink of current session path,
@@ -67,3 +75,20 @@ def session_ensure_current_valid(session: object = None) -> None:
         return
 
     path.symlink_to(session_path)
+
+async def get_session_info(session_path: Path) -> SessionInfo | None:
+    session = TGSession(str(session_path))
+    id, username, phone, name = session.get_possible_user_entity()
+    return SessionInfo(session_name=session_path.stem, user_id=id, user_name=username, user_phone=phone, user_display_name=name)
+
+async def list_session_info() -> list[SessionInfo]:
+    folder = get_app_session_folder()
+    session_path_list = [
+        item
+        for item in folder.glob("*.session")
+        if not item.is_symlink() and item.is_file()
+    ]
+    session_info_list = await asyncio.gather(
+        *(get_session_info(session_path) for session_path in session_path_list)
+    )
+    return [session_info for session_info in session_info_list if session_info is not None]

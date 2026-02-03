@@ -7,7 +7,9 @@ from rich import print
 from tele_cli import utils
 from tele_cli.app import TeleCLI
 from tele_cli.config import load_config
+from tele_cli.session import list_session_info
 from tele_cli.types import OutputFormat
+from tele_cli.utils.fmt import format_session_info_list
 
 auth_cli = typer.Typer(
     no_args_is_help=True,
@@ -21,7 +23,6 @@ def auth_login(ctx: typer.Context):
     session: str = ctx.obj["session"]
 
     def get_phone() -> str:
-
         print("""
         Telegram login requires your phone number.
         
@@ -77,6 +78,21 @@ def auth_logout(ctx: typer.Context):
         me = await app.logout()
         if me:
             print(f"Bye {utils.fmt.format_me(me, OutputFormat.text)}")
+        return True
+
+    ok = asyncio.run(_run())
+    if not ok:
+        raise typer.Exit(code=1)
+
+
+@auth_cli.command(name="list")
+def auth_list(ctx: typer.Context):
+    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.json
+    config_file: Path | None = ctx.obj["config_file"]
+
+    async def _run() -> bool:
+        session_info_list = await list_session_info()
+        print(format_session_info_list(session_info_list, fmt=output_format))
         return True
 
     ok = asyncio.run(_run())
