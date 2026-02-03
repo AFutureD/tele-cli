@@ -5,9 +5,10 @@ from typing import Callable
 
 import telethon
 from telethon import TelegramClient
+from telethon.errors import RPCError
 
 from . import types
-from .session import load_session, session_ensure_current_valid, TGSession
+from .session import TGSession, load_session, session_ensure_current_valid
 
 
 class TGClient(TelegramClient):
@@ -20,7 +21,7 @@ class TGClient(TelegramClient):
         self,
         phone: Callable[[], str],
         code: Callable[[], str | int],
-        password: Callable[[], str]
+        password: Callable[[], str],
     ) -> None:
         result = self.start(phone=phone, password=password, code_callback=code)
         if inspect.isawaitable(result):
@@ -71,7 +72,7 @@ class TeleCLI:
         self,
         phone: Callable[[], str],
         code: Callable[[], str],
-        password: Callable[[], str]
+        password: Callable[[], str],
     ) -> telethon.types.User | None:
         try:
             async with self.client() as client:
@@ -81,6 +82,7 @@ class TeleCLI:
                 session_ensure_current_valid(session=client.session)
 
                 return me if isinstance(me, telethon.types.User) else None
-
+        except RPCError:
+            session_ensure_current_valid(session=None)
         except KeyboardInterrupt:
             session_ensure_current_valid(session=None)

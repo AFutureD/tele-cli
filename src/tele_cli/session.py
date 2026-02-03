@@ -90,6 +90,7 @@ async def get_session_info(session_path: Path) -> SessionInfo | None:
     session = TGSession(str(session_path))
     id, username, phone, name = session.get_possible_user_entity()
     return SessionInfo(
+        path=session_path,
         session_name=session_path.stem,
         user_id=id,
         user_name=username,
@@ -111,3 +112,13 @@ async def list_session_info() -> list[SessionInfo]:
     return [
         session_info for session_info in session_info_list if session_info is not None
     ]
+
+
+def session_switch(session_path: Path) -> None:
+    if not session_path.exists():
+        return
+
+    path = get_app_session_current()
+    path.unlink(missing_ok=True)
+
+    path.symlink_to(session_path)

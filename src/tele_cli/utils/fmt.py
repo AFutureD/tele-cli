@@ -39,14 +39,22 @@ def format_dialog_list(
         case OutputFormat.toon:
             raise NotImplementedError("Not Supported Format For Dialog")
 
-def format_session_info_list(session_info_list: list[SessionInfo], fmt: None | OutputFormat = None) -> str:
+
+def format_session_info_list(
+    session_info_list: list[SessionInfo], fmt: None | OutputFormat = None
+) -> str:
     fmt: OutputFormat = fmt or OutputFormat.json
 
     match fmt:
         case OutputFormat.text:
-            return '\n'.join([f"{obj.user_display_name}(@{obj.user_name}) {obj.session_name}" for obj in session_info_list])
+            return "\n".join(
+                [
+                    f"{obj.user_display_name}({'@' + obj.user_name if obj.user_name else 'unknown'}) {obj.session_name}"
+                    for obj in session_info_list
+                ]
+            )
         case OutputFormat.json:
-            obj_list = [item.model_dump(mode='json') for item in session_info_list]
+            obj_list = [item.model_dump(mode="json") for item in session_info_list]
             return json.dumps(obj_list, ensure_ascii=False)
         case OutputFormat.toon:
             raise NotImplementedError("Not Supported Format For SessionInfo List")
