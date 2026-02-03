@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 
 import asyncio
 from typing import Annotated
@@ -9,7 +10,8 @@ from telethon.tl.custom import Dialog
 
 from tele_cli import utils
 from tele_cli.app import TeleCLI
-from tele_cli.utils.fmt import OutputFormat
+from tele_cli.types import OutputFormat
+from tele_cli.config import load_config
 
 from .auth import auth_cli
 
@@ -28,20 +30,35 @@ cli.add_typer(conversation_cli, name="dialog")
 @cli.callback()
 def main(
     ctx: typer.Context,
+    config_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            help="Configuration File Path",
+            file_okay=True,
+            writable=True,
+            readable=True,
+            resolve_path=True,
+        ),
+    ] = None,
     fmt: Annotated[
         OutputFormat, typer.Option("--format", "-f", help="Output format")
     ] = OutputFormat.json,
 ) -> None:
     ctx.ensure_object(dict)
     ctx.obj["fmt"] = fmt
+    ctx.obj["config_file"] = config_file
 
 
 @cli.command(name="me")
 def me_get(ctx: typer.Context):
     output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.json
+    config_file: Path | None = ctx.obj["config_file"]
 
     async def _run() -> bool:
-        app = await TeleCLI.create()
+        app = await TeleCLI.create(
+            session=None, config=load_config(config_file=config_file)
+        )
         me = await app.get_me()
 
         if not me:
@@ -59,8 +76,11 @@ def me_get(ctx: typer.Context):
 def conversation_list(ctx: typer.Context):
     async def _run() -> bool:
         output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.json
+        config_file: Path | None = ctx.obj["config_file"]
 
-        app = await TeleCLI.create()
+        app = await TeleCLI.create(
+            session=None, config=load_config(config_file=config_file)
+        )
         async with app.client() as client:
             dialog_list: list[Dialog] = [item async for item in client.iter_dialogs()]
 

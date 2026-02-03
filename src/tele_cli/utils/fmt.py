@@ -1,15 +1,10 @@
-from enum import Enum
-import telethon
-import toon_format
 import json
 
+import telethon
+import toon_format
 from telethon.tl.tlobject import _json_default
 
-
-class OutputFormat(str, Enum):
-    text = "text"
-    json = "json"
-    toon = "toon"
+from tele_cli.types import OutputFormat
 
 
 def format_me(me: telethon.types.User, fmt: None | OutputFormat = None) -> str:
