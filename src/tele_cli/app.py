@@ -8,6 +8,20 @@ from . import types
 from .session import load_session
 
 
+class TGClient(TelegramClient):
+    async def _start_without_login(self) -> "TGClient":
+        if not self.is_connected():
+            await self.connect()
+        return self
+
+    def __aenter__(self):
+        """
+        override super `__aenter__` to avoid login process.
+        """
+        coro = self._start_without_login()
+        return coro if self.loop.is_running() else self.loop.run_until_complete(coro)
+
+
 class TeleCLI:
     @staticmethod
     async def create(
@@ -15,18 +29,18 @@ class TeleCLI:
     ) -> TeleCLI:
         session: SQLiteSession = load_session(session, with_current=with_current)
 
-        client = TelegramClient(
+        client = TGClient(
             session=session,
             api_id=config.api_id,
             api_hash=config.api_hash,
         )
 
-        return TeleCLI(client)
+        return TeleCLI(client=client)
 
-    def __init__(self, client: TelegramClient):
+    def __init__(self, client: TGClient):
         self._client = client
 
-    def client(self) -> TelegramClient:
+    def client(self) -> TGClient:
         return self._client
 
     async def get_me(self) -> telethon.types.User | None:
@@ -35,12 +49,7 @@ class TeleCLI:
             return me if isinstance(me, telethon.types.User) else None
 
     async def logout(self) -> telethon.types.User | None:
-        try:
-            await self.client().connect()
-            me = await self.client().get_me()
+        async with self.client() as client:
+            me = await client.get_me()
             await self.client().log_out()
-
             return me if isinstance(me, telethon.types.User) else None
-        finally:
-            # noinspection PyUnresolvedReferences
-            await self.client().disconnect()
