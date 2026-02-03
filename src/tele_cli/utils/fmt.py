@@ -49,7 +49,10 @@ def format_session_info_list(
         case OutputFormat.text:
             return "\n".join(
                 [
-                    f"{obj.user_display_name}({'@' + obj.user_name if obj.user_name else 'unknown'}) {obj.session_name}"
+                    f"{obj.user_id: <12} \
+{obj.user_display_name or 'unknown'} \
+({'@' + obj.user_name if obj.user_name else 'unknown'}) \
+{obj.session_name}"
                     for obj in session_info_list
                 ]
             )
