@@ -1,7 +1,7 @@
 from __future__ import annotations
-from pathlib import Path
 
 import asyncio
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -10,8 +10,8 @@ from telethon.tl.custom import Dialog
 
 from tele_cli import utils
 from tele_cli.app import TeleCLI
-from tele_cli.types import OutputFormat
 from tele_cli.config import load_config
+from tele_cli.types import OutputFormat
 
 from .auth import auth_cli
 
@@ -41,6 +41,7 @@ def main(
             resolve_path=True,
         ),
     ] = None,
+    session: Annotated[str | None, typer.Option()] = None,
     fmt: Annotated[
         OutputFormat, typer.Option("--format", "-f", help="Output format")
     ] = OutputFormat.json,
@@ -48,6 +49,7 @@ def main(
     ctx.ensure_object(dict)
     ctx.obj["fmt"] = fmt
     ctx.obj["config_file"] = config_file
+    ctx.obj["session"] = session
 
 
 @cli.command(name="me")
