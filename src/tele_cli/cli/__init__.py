@@ -44,7 +44,7 @@ def main(
     session: Annotated[str | None, typer.Option()] = None,
     fmt: Annotated[
         OutputFormat, typer.Option("--format", "-f", help="Output format")
-    ] = OutputFormat.json,
+    ] = OutputFormat.text,
 ) -> None:
     ctx.ensure_object(dict)
     ctx.obj["fmt"] = fmt
@@ -54,7 +54,7 @@ def main(
 
 @cli.command(name="me")
 def me_get(ctx: typer.Context) -> None:
-    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.json
+    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.text
     config_file: Path | None = ctx.obj["config_file"]
 
     async def _run() -> bool:
@@ -77,7 +77,7 @@ def me_get(ctx: typer.Context) -> None:
 @conversation_cli.command(name="list")
 def conversation_list(ctx: typer.Context):
     async def _run() -> bool:
-        output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.json
+        output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.text
         config_file: Path | None = ctx.obj["config_file"]
 
         app = await TeleCLI.create(

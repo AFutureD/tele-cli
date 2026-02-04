@@ -21,7 +21,7 @@ auth_cli = typer.Typer(
 
 @auth_cli.command(name="login")
 def auth_login(ctx: typer.Context):
-    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.json
+    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.text
     config_file: Path | None = ctx.obj["config_file"]
     session: str = ctx.obj["session"]
 
@@ -69,7 +69,7 @@ def auth_login(ctx: typer.Context):
 
 @auth_cli.command(name="logout")
 def auth_logout(ctx: typer.Context):
-    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.json
+    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.text
     config_file: Path | None = ctx.obj["config_file"]
     session: str = ctx.obj["session"]
 
