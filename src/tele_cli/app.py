@@ -36,9 +36,7 @@ class TGClient(TelegramClient):
 
 class TeleCLI:
     @staticmethod
-    async def create(
-        session_name: str | None, config: types.Config, with_current: bool = True
-    ) -> TeleCLI:
+    async def create(session_name: str | None, config: types.Config, with_current: bool = True) -> TeleCLI:
         session: TGSession = load_session(session_name, with_current=with_current)
 
         client = TGClient(

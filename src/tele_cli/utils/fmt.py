@@ -1,8 +1,6 @@
 from datetime import datetime
 import json
 
-import rich
-from rich.text import Text
 import telethon
 import toon_format
 from telethon.tl.tlobject import _json_default
@@ -12,18 +10,14 @@ from tele_cli.types.session import SessionInfo
 
 
 def format_me(me: telethon.types.User, fmt: None | OutputFormat = None) -> str:
-    fmt: OutputFormat = fmt or OutputFormat.text
-    match fmt:
+    output_fmt = fmt or OutputFormat.text
+    match output_fmt:
         case OutputFormat.text:
             return telethon.utils.get_display_name(me)
         case OutputFormat.json:
-            return me.to_json()
+            return json.dumps(me.to_json(), ensure_ascii=False)
         case OutputFormat.toon:
             return toon_format.encode(me.to_dict())
-
-
-def format_dialog(dialog: telethon.custom.Dialog, fmt: None | OutputFormat = None) -> str:
-    return ""
 
 
 def _format_dialog_to_str(x: telethon.custom.Dialog) -> str:
@@ -65,8 +59,8 @@ def _format_dialog_to_str(x: telethon.custom.Dialog) -> str:
 
 
 def format_dialog_list(dialog_list: list[telethon.custom.Dialog], fmt: None | OutputFormat = None) -> str:
-    fmt: OutputFormat = fmt or OutputFormat.text
-    match fmt:
+    output_fmt = fmt or OutputFormat.text
+    match output_fmt:
         case OutputFormat.text:
             return "\n".join([_format_dialog_to_str(x) for x in sorted(dialog_list, key=lambda x: x.archived)])
 
@@ -92,13 +86,14 @@ def format_dialog_list(dialog_list: list[telethon.custom.Dialog], fmt: None | Ou
 
 
 def _format_session_info_to_str(x: SessionInfo) -> str:
-    return f"{x.user_id: <12} {x.user_display_name or 'unknown'} ({'@' + x.user_name if obj.user_name else 'unknown'}) {x.session_name}"
+    username = f"@{x.user_name}" if x.user_name else "unknown"
+    return f"{x.user_id: <12} {x.user_display_name or 'unknown'} ({username}) {x.session_name}"
 
 
 def format_session_info_list(session_info_list: list[SessionInfo], fmt: None | OutputFormat = None) -> str:
-    fmt: OutputFormat = fmt or OutputFormat.text
+    output_fmt = fmt or OutputFormat.text
 
-    match fmt:
+    match output_fmt:
         case OutputFormat.text:
             return "\n".join([_format_session_info_to_str(obj) for obj in session_info_list])
         case OutputFormat.json:

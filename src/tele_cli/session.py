@@ -3,7 +3,6 @@ import uuid
 from pathlib import Path
 
 from telethon.sessions import SQLiteSession
-from telethon.tl.types import User
 
 from tele_cli.shared import get_app_user_defualt_dir
 
@@ -20,9 +19,7 @@ class TGSession(SQLiteSession):
         :return: tuple of possible user entity
         """
 
-        return self._execute(
-            "select id, username, phone, name from entities where id > 0 ORDER BY date ASC limit 1"
-        )
+        return self._execute("select id, username, phone, name from entities where id > 0 ORDER BY date ASC limit 1")
 
 
 def get_app_session_folder() -> Path:
@@ -47,9 +44,7 @@ def _get_session_path(session_name: str | None, with_current: bool) -> Path:
 
 
 def load_session(session_name: str | None, with_current: bool = True) -> TGSession:
-    session_path = _get_session_path(
-        session_name=session_name, with_current=with_current
-    )
+    session_path = _get_session_path(session_name=session_name, with_current=with_current)
     return TGSession(str(session_path))
 
 
@@ -101,17 +96,9 @@ async def get_session_info(session_path: Path) -> SessionInfo | None:
 
 async def list_session_info() -> list[SessionInfo]:
     folder = get_app_session_folder()
-    session_path_list = [
-        item
-        for item in folder.glob("*.session")
-        if not item.is_symlink() and item.is_file()
-    ]
-    session_info_list = await asyncio.gather(
-        *(get_session_info(session_path) for session_path in session_path_list)
-    )
-    return [
-        session_info for session_info in session_info_list if session_info is not None
-    ]
+    session_path_list = [item for item in folder.glob("*.session") if not item.is_symlink() and item.is_file()]
+    session_info_list = await asyncio.gather(*(get_session_info(session_path) for session_path in session_path_list))
+    return [session_info for session_info in session_info_list if session_info is not None]
 
 
 def session_switch(session_path: Path) -> None:

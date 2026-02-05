@@ -38,3 +38,6 @@ tele = "tele_cli.cli:cli"
 
 [tool.ruff]
 line-length = 160
+
+[tool.ruff.lint]
+fixable = ["F401"]

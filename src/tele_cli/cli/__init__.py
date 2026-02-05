@@ -14,6 +14,7 @@ from tele_cli.config import load_config
 from tele_cli.types import OutputFormat
 
 from .auth import auth_cli
+from .types import SharedArgs
 
 cli = typer.Typer(
     epilog="Telegram CLI",
@@ -22,9 +23,9 @@ cli = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     help="",
 )
-conversation_cli = typer.Typer()
+dialog_cli = typer.Typer()
 cli.add_typer(auth_cli, name="auth")
-cli.add_typer(conversation_cli, name="dialog")
+cli.add_typer(dialog_cli, name="dialog")
 
 
 @cli.callback()
@@ -44,25 +45,21 @@ def main(
     session: Annotated[str | None, typer.Option()] = None,
     fmt: Annotated[OutputFormat, typer.Option("--format", "-f", help="Output format")] = OutputFormat.text,
 ) -> None:
-    ctx.ensure_object(dict)
-    ctx.obj["fmt"] = fmt
-    ctx.obj["config_file"] = config_file
-    ctx.obj["session"] = session
+    ctx.obj = SharedArgs(fmt=fmt, config_file=config_file, session=session)
 
 
 @cli.command(name="me")
 def me_get(ctx: typer.Context) -> None:
-    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.text
-    config_file: Path | None = ctx.obj["config_file"]
+    cli_args: SharedArgs = ctx.obj
 
     async def _run() -> bool:
-        app = await TeleCLI.create(session_name=None, config=load_config(config_file=config_file))
+        app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
 
         me = await app.get_me()
         if not me:
             return False
 
-        print(utils.fmt.format_me(me, output_format))
+        print(utils.fmt.format_me(me, cli_args.fmt))
         return True
 
     ok = asyncio.run(_run())
@@ -70,17 +67,16 @@ def me_get(ctx: typer.Context) -> None:
         raise typer.Exit(code=1)
 
 
-@conversation_cli.command(name="list")
+@dialog_cli.command(name="list")
 def conversation_list(ctx: typer.Context):
-    async def _run() -> bool:
-        output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.text
-        config_file: Path | None = ctx.obj["config_file"]
+    cli_args: SharedArgs = ctx.obj
 
-        app = await TeleCLI.create(session_name=None, config=load_config(config_file=config_file))
+    async def _run() -> bool:
+        app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
         async with app.client() as client:
             dialog_list: list[Dialog] = [item async for item in client.iter_dialogs()]
 
-            print(utils.fmt.format_dialog_list(dialog_list, output_format))
+            print(utils.fmt.format_dialog_list(dialog_list, cli_args.fmt))
 
         return False
 

@@ -1,7 +1,6 @@
-from pytest import Session
+from .types import SharedArgs
 from tele_cli.types.session import SessionInfo
 import asyncio
-from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -11,7 +10,6 @@ from tele_cli import utils
 from tele_cli.app import TeleCLI
 from tele_cli.config import load_config
 from tele_cli.session import list_session_info, session_switch
-from tele_cli.types import OutputFormat
 from tele_cli.utils.fmt import format_session_info_list
 
 auth_cli = typer.Typer(
@@ -21,9 +19,7 @@ auth_cli = typer.Typer(
 
 @auth_cli.command(name="login")
 def auth_login(ctx: typer.Context):
-    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.text
-    config_file: Path | None = ctx.obj["config_file"]
-    session: str = ctx.obj["session"]
+    cli_args: SharedArgs = ctx.obj
 
     def get_phone() -> str:
         print("""
@@ -50,8 +46,8 @@ def auth_login(ctx: typer.Context):
 
     async def _run() -> bool:
         app = await TeleCLI.create(
-            session_name=session,
-            config=load_config(config_file=config_file),
+            session_name=cli_args.session,
+            config=load_config(config_file=cli_args.config_file),
             with_current=False,
         )
 
@@ -59,7 +55,7 @@ def auth_login(ctx: typer.Context):
         if not me:
             return False
 
-        print(f"Hi {utils.fmt.format_me(me, OutputFormat.text)}")
+        print(f"Hi {utils.fmt.format_me(me, cli_args.fmt)}")
         return True
 
     ok = asyncio.run(_run())
@@ -69,18 +65,14 @@ def auth_login(ctx: typer.Context):
 
 @auth_cli.command(name="logout")
 def auth_logout(ctx: typer.Context):
-    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.text
-    config_file: Path | None = ctx.obj["config_file"]
-    session: str = ctx.obj["session"]
+    cli_args: SharedArgs = ctx.obj
 
     async def _run() -> bool:
-        app = await TeleCLI.create(
-            session_name=session, config=load_config(config_file=config_file)
-        )
+        app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
 
         me = await app.logout()
         if me:
-            print(f"Bye {utils.fmt.format_me(me, OutputFormat.text)}")
+            print(f"Bye {utils.fmt.format_me(me, cli_args.fmt)}")
         return True
 
     ok = asyncio.run(_run())
@@ -90,12 +82,11 @@ def auth_logout(ctx: typer.Context):
 
 @auth_cli.command(name="list")
 def auth_list(ctx: typer.Context):
-    output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.json
-    config_file: Path | None = ctx.obj["config_file"]
+    cli_args: SharedArgs = ctx.obj
 
     async def _run() -> bool:
         session_info_list = await list_session_info()
-        print(format_session_info_list(session_info_list, fmt=output_format))
+        print(format_session_info_list(session_info_list, fmt=cli_args.fmt))
         return True
 
     ok = asyncio.run(_run())
@@ -124,9 +115,7 @@ def auth_switch(
 
     async def _run() -> bool:
         if not user_id and not username and not session:
-            raise typer.BadParameter(
-                "Provide at least one of: user_id, username, or session."
-            )
+            raise typer.BadParameter("Provide at least one of: user_id, username, or session.")
 
         session_info_list = await list_session_info()
 
