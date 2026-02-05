@@ -43,10 +43,10 @@ async def main():
         )
 
         # Sending a message returns the sent message object, which you can use
-        print(message.raw_text)
+        print(message.raw_text)  # type: ignore[attr-defined]
 
         # You can reply to messages directly if you have a message object
-        await message.reply("Cool!")
+        await message.reply("Cool!")  # type: ignore[attr-defined]
 
         # Or send files, songs, documents, albums...
         await client.send_file("me", "/Users/huanan/Downloads/0.jpg")

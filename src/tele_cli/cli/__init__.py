@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from rich import print
 from telethon.tl.custom import Dialog
+from telethon.tl.types import Message
 
 from tele_cli import utils
 from tele_cli.app import TeleCLI
@@ -24,8 +26,10 @@ cli = typer.Typer(
     help="",
 )
 dialog_cli = typer.Typer()
+message_cli = typer.Typer()
 cli.add_typer(auth_cli, name="auth")
 cli.add_typer(dialog_cli, name="dialog")
+cli.add_typer(message_cli, name="message")
 
 
 @cli.callback()
@@ -79,6 +83,56 @@ def conversation_list(ctx: typer.Context):
             print(utils.fmt.format_dialog_list(dialog_list, cli_args.fmt))
 
         return False
+
+    ok = asyncio.run(_run())
+    if not ok:
+        raise typer.Exit(code=1)
+
+
+@message_cli.command(name="list")
+def messages_list(
+    ctx: typer.Context,
+    dialog_id: Annotated[int, typer.Argument(help="Dialog ID to fetch messages from excluded")],
+    before: Annotated[str | None, typer.Option("--before", help="End date excluded")] = None,
+    num: Annotated[int, typer.Option("--num", "-n", help="Maximum number of messages to fetch")] = 1,
+    offset_id: Annotated[int, typer.Option("--offset_id", help="Maximum number of messages to fetch")] = 0,
+):
+    """
+    based on https://core.telegram.org/method/messages.getHistory
+
+
+    1. fetch messages within the week
+    2. fetch message within last week
+    3. fetch unread messages
+    4. fetch 10 newest messages
+    5. fetch 11-20 newest messages
+    6. fetch messages around a message
+    7. fetch 
+    """
+    cli_args: SharedArgs = ctx.obj
+
+    import dateparser
+
+    date_end: datetime | None = None
+    if before:
+        date_end = dateparser.parse(before)
+
+    async def _run() -> bool:
+        app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
+        async with app.client() as client:
+            messages: list[Message] = [
+                msg
+                async for msg in client.iter_messages(
+                    dialog_id,
+                    offset_id=offset_id,
+                    offset_date=date_end,
+                    limit=num,
+                )
+            ]
+
+            print(utils.fmt.format_message_list(messages, cli_args.fmt))
+
+        return True
 
     ok = asyncio.run(_run())
     if not ok:

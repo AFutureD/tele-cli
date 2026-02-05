@@ -85,6 +85,32 @@ def format_dialog_list(dialog_list: list[telethon.custom.Dialog], fmt: None | Ou
             raise NotImplementedError("Not Supported Format For Dialog")
 
 
+def _format_message_to_str(msg: telethon.types.Message) -> str:
+    sender_name = "?"
+    if msg.sender:
+        sender_name = telethon.utils.get_display_name(msg.sender)
+    elif msg.out:
+        sender_name = "me"
+    date_str = msg.date.strftime("%Y-%m-%d %H:%M:%S") if msg.date else "?"
+    text = msg.message or ""
+    if len(text) > 100:
+        text = text[:100] + "..."
+    text = text.replace("\n", " ")
+    return f"[{msg.id}] {date_str} {sender_name}: {text}"
+
+
+def format_message_list(messages: list[telethon.types.Message], fmt: None | OutputFormat = None) -> str:
+    output_fmt = fmt or OutputFormat.text
+    match output_fmt:
+        case OutputFormat.text:
+            return "\n".join([_format_message_to_str(msg) for msg in messages])
+        case OutputFormat.json:
+            obj_list = [msg.to_dict() for msg in messages]
+            return json.dumps(obj_list, default=_json_default, ensure_ascii=False)
+        case OutputFormat.toon:
+            raise NotImplementedError("Not Supported Format For Message List")
+
+
 def _format_session_info_to_str(x: SessionInfo) -> str:
     username = f"@{x.user_name}" if x.user_name else "unknown"
     return f"{x.user_id: <12} {x.user_display_name or 'unknown'} ({username}) {x.session_name}"
