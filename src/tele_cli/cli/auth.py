@@ -50,7 +50,7 @@ def auth_login(ctx: typer.Context):
 
     async def _run() -> bool:
         app = await TeleCLI.create(
-            session=session,
+            session_name=session,
             config=load_config(config_file=config_file),
             with_current=False,
         )
@@ -75,7 +75,7 @@ def auth_logout(ctx: typer.Context):
 
     async def _run() -> bool:
         app = await TeleCLI.create(
-            session=session, config=load_config(config_file=config_file)
+            session_name=session, config=load_config(config_file=config_file)
         )
 
         me = await app.logout()

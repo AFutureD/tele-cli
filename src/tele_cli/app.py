@@ -27,20 +27,19 @@ class TGClient(TelegramClient):
         if inspect.isawaitable(result):
             await result
 
-    def __aenter__(self):
+    async def __aenter__(self):
         """
         override super `__aenter__` to avoid login process.
         """
-        coro = self._start_without_login()
-        return coro if self.loop.is_running() else self.loop.run_until_complete(coro)
+        return await self._start_without_login()
 
 
 class TeleCLI:
     @staticmethod
     async def create(
-        session: str | None, config: types.Config, with_current: bool = True
+        session_name: str | None, config: types.Config, with_current: bool = True
     ) -> TeleCLI:
-        session: TGSession = load_session(session, with_current=with_current)
+        session: TGSession = load_session(session_name, with_current=with_current)
 
         client = TGClient(
             session=session,
@@ -58,13 +57,14 @@ class TeleCLI:
 
     async def get_me(self) -> telethon.types.User | None:
         async with self.client() as client:
+            await client.is_user_authorized()
             me = await client.get_me()
             return me if isinstance(me, telethon.types.User) else None
 
     async def logout(self) -> telethon.types.User | None:
         async with self.client() as client:
             me = await client.get_me()
-            await self.client().log_out()
+            await client.log_out()
             session_ensure_current_valid(session=None)
             return me if isinstance(me, telethon.types.User) else None
 

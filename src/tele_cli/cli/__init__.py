@@ -42,9 +42,7 @@ def main(
         ),
     ] = None,
     session: Annotated[str | None, typer.Option()] = None,
-    fmt: Annotated[
-        OutputFormat, typer.Option("--format", "-f", help="Output format")
-    ] = OutputFormat.text,
+    fmt: Annotated[OutputFormat, typer.Option("--format", "-f", help="Output format")] = OutputFormat.text,
 ) -> None:
     ctx.ensure_object(dict)
     ctx.obj["fmt"] = fmt
@@ -58,9 +56,7 @@ def me_get(ctx: typer.Context) -> None:
     config_file: Path | None = ctx.obj["config_file"]
 
     async def _run() -> bool:
-        app = await TeleCLI.create(
-            session=None, config=load_config(config_file=config_file)
-        )
+        app = await TeleCLI.create(session_name=None, config=load_config(config_file=config_file))
 
         me = await app.get_me()
         if not me:
@@ -80,9 +76,7 @@ def conversation_list(ctx: typer.Context):
         output_format: utils.fmt.OutputFormat = ctx.obj["fmt"] or OutputFormat.text
         config_file: Path | None = ctx.obj["config_file"]
 
-        app = await TeleCLI.create(
-            session=None, config=load_config(config_file=config_file)
-        )
+        app = await TeleCLI.create(session_name=None, config=load_config(config_file=config_file))
         async with app.client() as client:
             dialog_list: list[Dialog] = [item async for item in client.iter_dialogs()]
 

@@ -35,3 +35,6 @@ tele-cli = { workspace = true }
 
 [project.scripts]
 tele = "tele_cli.cli:cli"
+
+[tool.ruff]
+line-length = 160
