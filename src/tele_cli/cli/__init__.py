@@ -20,17 +20,59 @@ from .auth import auth_cli
 from .types import SharedArgs
 
 cli = typer.Typer(
-    epilog="Telegram CLI",
+    epilog="Made by Huanan",
+    rich_markup_mode="markdown",
     add_completion=False,
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
-    help="",
+    help="""
+The Telegram CLI.
+
+Quick Start
+1. tele auth login
+2. tele me
+3. tele dialog list
+4. tele message list <dialog_id> -n 20
+""",
 )
-dialog_cli = typer.Typer()
-message_cli = typer.Typer()
-cli.add_typer(auth_cli, name="auth")
-cli.add_typer(dialog_cli, name="dialog")
-cli.add_typer(message_cli, name="message")
+dialog_cli = typer.Typer(
+    no_args_is_help=True,
+    help="""
+Dialog commands
+List chats, groups and channels from your account.
+""",
+)
+message_cli = typer.Typer(
+    no_args_is_help=True,
+    help="""
+Message commands
+Fetch message history from a dialog with date or count filters.
+""",
+)
+cli.add_typer(
+    auth_cli,
+    name="auth",
+    help="""
+Authentication commands
+Login, logout, list, and switch sessions.
+""",
+)
+cli.add_typer(
+    dialog_cli,
+    name="dialog",
+    help="""
+Dialog commands
+Inspect dialogs/chats.
+""",
+)
+cli.add_typer(
+    message_cli,
+    name="message",
+    help="""
+Message commands
+Inspect dialog messages.
+""",
+)
 
 
 @cli.callback()
@@ -40,21 +82,31 @@ def main(
         Path | None,
         typer.Option(
             "--config",
-            help="Configuration File Path",
+            help="Path to config TOML file. [default: `~/.config/tele/config.toml`]",
             file_okay=True,
             writable=True,
             readable=True,
             resolve_path=True,
         ),
     ] = None,
-    session: Annotated[str | None, typer.Option()] = None,
-    fmt: Annotated[OutputFormat, typer.Option("--format", "-f", help="Output format")] = OutputFormat.text,
+    session: Annotated[
+        str | None,
+        typer.Option(help="Session file name to use. List via `tele auth list`. [default: Current]"),
+    ] = None,
+    fmt: Annotated[
+        OutputFormat,
+        typer.Option("--format", "-f", help="Output format."),
+    ] = OutputFormat.text,
 ) -> None:
     ctx.obj = SharedArgs(fmt=fmt, config_file=config_file, session=session)
 
 
 @cli.command(name="me")
 def me_get(ctx: typer.Context) -> None:
+    """
+    Show the current authenticated Telegram account.
+    """
+
     cli_args: SharedArgs = ctx.obj
 
     async def _run() -> bool:
@@ -73,7 +125,19 @@ def me_get(ctx: typer.Context) -> None:
 
 
 @dialog_cli.command(name="list")
-def conversation_list(ctx: typer.Context):
+def dialog_list(ctx: typer.Context):
+    """
+    List dialogs from your account.
+
+    Text Foramt Template:
+
+    `[TYPE.UI.STATE] [UNREAD COUNT] [DIALOG_ID] NAME`
+
+    - TYPE: Dialog type. U: user; G: group; C: channel;
+    - UI: The UI State of dialog. P: pinned, A: archived; -: normal.
+    - STATE: Dialog State. M: muted, -: not muted.
+    """
+
     cli_args: SharedArgs = ctx.obj
 
     async def _run() -> bool:
@@ -93,25 +157,28 @@ def conversation_list(ctx: typer.Context):
 @message_cli.command(name="list")
 def messages_list(
     ctx: typer.Context,
-    dialog_id: Annotated[int, typer.Argument(help="Dialog ID to fetch messages from excluded")],
-    from_str: Annotated[str | None, typer.Option("--from", help="End date excluded")] = None,
-    to_str: Annotated[str | None, typer.Option("--to", help="End date excluded")] = None,
-    range_str: Annotated[str | None, typer.Option("--range", help="End date excluded")] = None,
-    num: Annotated[int | None, typer.Option("--num", "-n", help="Maximum number of messages to fetch")] = None,
-    offset_id: Annotated[int, typer.Option("--offset_id", help="Maximum number of messages to fetch")] = 0,
-    order: Annotated[OutputOrder, typer.Option("--order", help="Order")] = OutputOrder.asc,
+    dialog_id: Annotated[int, typer.Argument(help="Dialog peer ID to fetch messages from.")],
+    from_str: Annotated[str | None, typer.Option("--from", help="Start boundary (natural language date).")] = None,
+    to_str: Annotated[str | None, typer.Option("--to", help="End boundary (natural language date).")] = None,
+    range_str: Annotated[str | None, typer.Option("--range", help="Natural language date range (overrides --from/--to).")] = None,
+    num: Annotated[int | None, typer.Option("--num", "-n", help="Maximum number of messages to fetch.")] = None,
+    offset_id: Annotated[int, typer.Option("--offset_id", help="Pagination offset ID (excluded).")] = 0,
+    order: Annotated[OutputOrder, typer.Option("--order", help="Output sort order by time.")] = OutputOrder.asc,
 ):
     """
-    based on https://core.telegram.org/method/messages.getHistory
+    List messages in a dialog.
 
+    Uses Telegram history APIs under the hood.
 
-    1. fetch messages within the week
-    2. fetch message within last week
-    3. fetch unread messages
-    4. fetch 10 newest messages
-    5. fetch 11-20 newest messages
-    6. fetch messages around a message
-    7. fetch
+    Filtering rules:
+    1. Set count with --num/-n and/or a date filter.
+    2. Date filters: --from, --to, or --range.
+    3. --range takes priority over --from and --to.
+    4. If no count and no date filter are provided, it fetches the latest one message.
+
+    Date input:
+    - --from and --to use `dateparser.parse`, e.g. "+1d", "yesterday", "2 weeks ago".
+    - --range uses `dateparser.search.search_dates`, e.g. "last week", "next month", "this week".
     """
     cli_args: SharedArgs = ctx.obj
 

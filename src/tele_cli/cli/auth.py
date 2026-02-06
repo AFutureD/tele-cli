@@ -13,11 +13,25 @@ from tele_cli.utils.fmt import format_session_info_list
 
 auth_cli = typer.Typer(
     no_args_is_help=True,
+    rich_markup_mode="rich",
+    help="""
+[bold]Authentication commands[/bold]
+Manage Telegram login sessions.
+""",
 )
 
 
-@auth_cli.command(name="login")
-def auth_login(ctx: typer.Context, switch_as_current: Annotated[bool, typer.Option("--switch", "-s", help="Make the login session as current")] = False):
+@auth_cli.command(
+    name="login",
+    help="Login with phone/code/password and create a local session.",
+)
+def auth_login(
+    ctx: typer.Context,
+    switch_as_current: Annotated[
+        bool,
+        typer.Option("--switch", "-s", help="Automatic set the login session as current."),
+    ] = False,
+):
     cli_args: SharedArgs = ctx.obj
 
     def get_phone() -> str:
@@ -66,7 +80,7 @@ def auth_login(ctx: typer.Context, switch_as_current: Annotated[bool, typer.Opti
         raise typer.Exit(code=1)
 
 
-@auth_cli.command(name="logout")
+@auth_cli.command(name="logout", help="Logout from the selected session.")
 def auth_logout(ctx: typer.Context):
     cli_args: SharedArgs = ctx.obj
 
@@ -83,7 +97,7 @@ def auth_logout(ctx: typer.Context):
         raise typer.Exit(code=1)
 
 
-@auth_cli.command(name="list")
+@auth_cli.command(name="list", help="List all local Telegram sessions.")
 def auth_list(ctx: typer.Context):
     cli_args: SharedArgs = ctx.obj
 
@@ -101,12 +115,12 @@ def auth_list(ctx: typer.Context):
         raise typer.Exit(code=1)
 
 
-@auth_cli.command(name="switch")
+@auth_cli.command(name="switch", help="Switch [green]Current.session[/green] to a matching local session.")
 def auth_switch(
     ctx: typer.Context,
     user_id: Annotated[
         int | None,
-        typer.Option("--uid", help="Telegram user id to switch to (e.g. 7820000665)."),
+        typer.Option("--uid", help="Telegram user peer id to switch to (e.g. 7820000665)."),
     ] = None,
     username: Annotated[
         str | None,
