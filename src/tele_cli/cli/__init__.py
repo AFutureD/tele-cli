@@ -179,6 +179,11 @@ def messages_list(
     Date input:
     - --from and --to use `dateparser.parse`, e.g. "+1d", "yesterday", "2 weeks ago".
     - --range uses `dateparser.search.search_dates`, e.g. "last week", "next month", "this week".
+
+    Examples:
+    1. `tele message list 1375282077 -n 10`
+    2. `tele message list 1375282077 --range "last week"`
+    3. `tele message list 1375282077 --from "yestarday"`
     """
     cli_args: SharedArgs = ctx.obj
 
