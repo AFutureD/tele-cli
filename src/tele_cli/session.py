@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 from pathlib import Path
 
@@ -20,6 +19,22 @@ class TGSession(SQLiteSession):
         """
 
         return self._execute("select id, username, phone, name from entities where id > 0 ORDER BY date ASC limit 1")
+
+    async def get_info(self) -> SessionInfo | None:
+        user_entity = self.get_possible_user_entity()
+        if not user_entity:
+            return None
+
+        session_path = Path(self.filename)
+        id, username, phone, name = user_entity
+        return SessionInfo(
+            path=session_path,
+            session_name=session_path.stem,
+            user_id=id,
+            user_name=username,
+            user_phone=phone,
+            user_display_name=name,
+        )
 
 
 def get_app_session_folder() -> Path:
@@ -81,27 +96,16 @@ def session_ensure_current_valid(session: object = None) -> None:
     path.symlink_to(session_path)
 
 
-async def get_session_info(session_path: Path) -> SessionInfo | None:
-    session = TGSession(str(session_path))
-    id, username, phone, name = session.get_possible_user_entity()
-    return SessionInfo(
-        path=session_path,
-        session_name=session_path.stem,
-        user_id=id,
-        user_name=username,
-        user_phone=phone,
-        user_display_name=name,
-    )
-
-
-async def list_session_info() -> list[SessionInfo]:
+async def list_session_list() -> list[TGSession]:
     folder = get_app_session_folder()
     session_path_list = [item for item in folder.glob("*.session") if not item.is_symlink() and item.is_file()]
-    session_info_list = await asyncio.gather(*(get_session_info(session_path) for session_path in session_path_list))
-    return [session_info for session_info in session_info_list if session_info is not None]
+    session_list = [TGSession(str(session_path)) for session_path in session_path_list]
+    return session_list
 
 
-def session_switch(session_path: Path) -> None:
+def session_switch(session: TGSession) -> None:
+    session_path = Path(session.filename)
+
     if not session_path.exists():
         return
 

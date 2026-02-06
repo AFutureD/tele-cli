@@ -1,6 +1,5 @@
 from telethon import TelegramClient, types
 import asyncio
-import typing
 
 api_id = 5296356
 api_hash = "5c7796703631d9c80cb53ba6ffc53a05"

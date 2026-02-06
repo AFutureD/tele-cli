@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Tuple
 
+import telethon
 import typer
 from rich import print
 from telethon.tl.custom import Dialog
@@ -13,7 +14,7 @@ from telethon.tl.types import Message
 from tele_cli import utils
 from tele_cli.app import TeleCLI
 from tele_cli.config import load_config
-from tele_cli.types import OutputFormat
+from tele_cli.types import OutputFormat, OutputOrder
 
 from .auth import auth_cli
 from .types import SharedArgs
@@ -93,9 +94,12 @@ def conversation_list(ctx: typer.Context):
 def messages_list(
     ctx: typer.Context,
     dialog_id: Annotated[int, typer.Argument(help="Dialog ID to fetch messages from excluded")],
-    before: Annotated[str | None, typer.Option("--before", help="End date excluded")] = None,
-    num: Annotated[int, typer.Option("--num", "-n", help="Maximum number of messages to fetch")] = 1,
+    from_str: Annotated[str | None, typer.Option("--from", help="End date excluded")] = None,
+    to_str: Annotated[str | None, typer.Option("--to", help="End date excluded")] = None,
+    range_str: Annotated[str | None, typer.Option("--range", help="End date excluded")] = None,
+    num: Annotated[int | None, typer.Option("--num", "-n", help="Maximum number of messages to fetch")] = None,
     offset_id: Annotated[int, typer.Option("--offset_id", help="Maximum number of messages to fetch")] = 0,
+    order: Annotated[OutputOrder, typer.Option("--order", help="Order")] = OutputOrder.asc,
 ):
     """
     based on https://core.telegram.org/method/messages.getHistory
@@ -107,28 +111,74 @@ def messages_list(
     4. fetch 10 newest messages
     5. fetch 11-20 newest messages
     6. fetch messages around a message
-    7. fetch 
+    7. fetch
     """
     cli_args: SharedArgs = ctx.obj
 
-    import dateparser
+    date_range: Tuple[datetime | None, datetime | None] = (None, None)
+    if True:
+        """convert from_str, to_str, range_str to date_range"""
+        import dateparser
+        from dateparser.search import search_dates
 
-    date_end: datetime | None = None
-    if before:
-        date_end = dateparser.parse(before)
+        date_from: datetime | None = None
+        if from_str:
+            date_from = dateparser.parse(from_str)
+
+        date_to: datetime | None = None
+        if to_str:
+            date_to = dateparser.parse(to_str)
+
+        date_span: list[datetime] | None = None
+        if range_str and range_str == "this week":
+            start_date = dateparser.parse("sunday")
+            assert start_date is not None
+            date_span = [start_date, start_date + timedelta(days=6)]
+        elif range_str:
+            dates = search_dates(range_str, settings={"RETURN_TIME_SPAN": True})
+            if len(dates) == 2:
+                # https://github.com/scrapinghub/dateparser/blob/cd5f226454e0ed3fe93164e7eff55b00f57e57c7/dateparser/search/search.py#L202
+                start = next((x for (s, x) in dates if "start" in s), None)
+                end = next((x for (s, x) in dates if "end" in s), None)
+                if start and end:
+                    date_span = [start, end]
+        if date_span:
+            date_range = (date_span[0], date_span[1])
+        else:
+            date_range = (date_from, date_to)
+
+    limit: int | None = None
+    if num:
+        limit = num
+    if limit == 0 and date_range == (None, None):
+        limit = 1
 
     async def _run() -> bool:
         app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
+
+        (date_start, date_end) = date_range
+        earliest_message: telethon.types.Message | None = None
+        if date_start:
+            async with app.client() as client:
+                ret: list[Message] = [msg async for msg in client.iter_messages(dialog_id, offset_date=date_start, limit=1, offset_id=-1)]
+                earliest_message = ret[0] if len(ret) >= 1 else None
+
+        min_id: int = earliest_message.id if earliest_message else 0
+
         async with app.client() as client:
             messages: list[Message] = [
                 msg
                 async for msg in client.iter_messages(
                     dialog_id,
+                    min_id=min_id,
+                    add_offset=(-1 if min_id else 0),
                     offset_id=offset_id,
                     offset_date=date_end,
-                    limit=num,
+                    limit=limit,  # type: ignore[arg-type]  # Telethon accepts None despite annotation
                 )
             ]
+            if order == OutputOrder.asc:
+                messages = list(reversed(messages))
 
             print(utils.fmt.format_message_list(messages, cli_args.fmt))
 

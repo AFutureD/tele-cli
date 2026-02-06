@@ -1,5 +1,5 @@
 from .config import Config
 from .error import ConfigError, CurrentSessionPathNotValidError
-from .output import OutputFormat
+from .output import OutputFormat, OutputOrder
 
-__all__ = ["OutputFormat", "Config", "ConfigError", "CurrentSessionPathNotValidError"]
+__all__ = ["OutputFormat", "OutputOrder", "Config", "ConfigError", "CurrentSessionPathNotValidError"]

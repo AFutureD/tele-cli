@@ -5,6 +5,8 @@
     "request": "launch",
     "module": "tele_cli.cli",
     "cwd": "$ZED_WORKTREE_ROOT",
-    "args": ["dialog", "list"],
+    "args": ["auth", "list"],
+    // "args": ["dialog", "list"],
+    // "args": ["message", "list", "4281316593", "--range", "last week"],
   },
 ]

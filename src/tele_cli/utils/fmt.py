@@ -7,6 +7,7 @@ from telethon.tl.tlobject import _json_default
 
 from tele_cli.types import OutputFormat
 from tele_cli.types.session import SessionInfo
+import arrow
 
 
 def format_me(me: telethon.types.User, fmt: None | OutputFormat = None) -> str:
@@ -85,18 +86,22 @@ def format_dialog_list(dialog_list: list[telethon.custom.Dialog], fmt: None | Ou
             raise NotImplementedError("Not Supported Format For Dialog")
 
 
-def _format_message_to_str(msg: telethon.types.Message) -> str:
-    sender_name = "?"
-    if msg.sender:
-        sender_name = telethon.utils.get_display_name(msg.sender)
-    elif msg.out:
+def _format_message_to_str(msg: telethon.types.Message, relative_time: bool = True) -> str:
+    sender_name = "unknown"
+    if msg.out:
         sender_name = "me"
-    date_str = msg.date.strftime("%Y-%m-%d %H:%M:%S") if msg.date else "?"
+    elif msg.sender:
+        sender_name = f"{telethon.utils.get_display_name(msg.sender)} (id: {msg.sender.id})"
+
+    if relative_time:
+        date_str = arrow.get(msg.date).humanize() if msg.date else "?"
+    else:
+        date_str = msg.date.strftime("%Y-%m-%d %H:%M") if msg.date else "?"
+
     text = msg.message or ""
-    if len(text) > 100:
-        text = text[:100] + "..."
-    text = text.replace("\n", " ")
-    return f"[{msg.id}] {date_str} {sender_name}: {text}"
+    message = "".join(["  " + x for x in text.splitlines(keepends=True)])
+
+    return f"* {msg.id} ({date_str}) - {sender_name}\n" + "\n" + message + "\n"
 
 
 def format_message_list(messages: list[telethon.types.Message], fmt: None | OutputFormat = None) -> str:

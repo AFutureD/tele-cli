@@ -1,5 +1,4 @@
 from .types import SharedArgs
-from tele_cli.types.session import SessionInfo
 import asyncio
 from typing import Annotated
 
@@ -9,7 +8,7 @@ from rich import print
 from tele_cli import utils
 from tele_cli.app import TeleCLI
 from tele_cli.config import load_config
-from tele_cli.session import list_session_info, session_switch
+from tele_cli.session import list_session_list, session_switch, TGSession
 from tele_cli.utils.fmt import format_session_info_list
 
 auth_cli = typer.Typer(
@@ -18,7 +17,7 @@ auth_cli = typer.Typer(
 
 
 @auth_cli.command(name="login")
-def auth_login(ctx: typer.Context):
+def auth_login(ctx: typer.Context, switch_as_current: Annotated[bool, typer.Option("--switch", "-s", help="Make the login session as current")] = False):
     cli_args: SharedArgs = ctx.obj
 
     def get_phone() -> str:
@@ -55,6 +54,10 @@ def auth_login(ctx: typer.Context):
         if not me:
             return False
 
+        session = app.client().session
+        if switch_as_current and isinstance(session, TGSession):
+            session_switch(session=session)
+
         print(f"Hi {utils.fmt.format_me(me, cli_args.fmt)}")
         return True
 
@@ -85,7 +88,11 @@ def auth_list(ctx: typer.Context):
     cli_args: SharedArgs = ctx.obj
 
     async def _run() -> bool:
-        session_info_list = await list_session_info()
+        session_list = await list_session_list()
+
+        session_info_list = await asyncio.gather(*(session.get_info() for session in session_list))
+        session_info_list = [session_info for session_info in session_info_list if session_info is not None]
+
         print(format_session_info_list(session_info_list, fmt=cli_args.fmt))
         return True
 
@@ -105,37 +112,41 @@ def auth_switch(
         str | None,
         typer.Option(help="Telegram username to switch to (e.g. @alice)."),
     ] = None,
-    session: Annotated[
+    session_name: Annotated[
         str | None,
-        typer.Option(help="Session name to use (as shown in `tele auth list`)."),
+        typer.Option("--session", help="Session name to use (as shown in `tele auth list`)."),
     ] = None,
 ):
     if username and username.startswith("@"):
         username = username.removeprefix("@")
 
     async def _run() -> bool:
-        if not user_id and not username and not session:
+        if not user_id and not username and not session_name:
             raise typer.BadParameter("Provide at least one of: user_id, username, or session.")
 
-        session_info_list = await list_session_info()
+        session_list = await list_session_list()
 
-        def predicator(session_info: SessionInfo) -> bool:
-            cond_1 = True if session and session == session_info.session_name else False
+        async def predicator(session: TGSession) -> bool:
+            session_info = await session.get_info()
+            if session_info is None:
+                return False
+
+            cond_1 = True if session_name and session_name == session_info.session_name else False
             cond_2 = True if username and username == session_info.user_name else False
             cond_3 = True if user_id and user_id == session_info.user_id else False
 
             return cond_1 or cond_2 or cond_3
 
-        session_info_list = list(filter(predicator, session_info_list))
+        session_list = [s for s in session_list if await predicator(s)]
 
-        if len(session_info_list) == 0:
+        if len(session_list) == 0:
             raise typer.BadParameter("No Session Matched")
 
-        if len(session_info_list) > 1:
+        if len(session_list) > 1:
             raise typer.BadParameter("Multiple Sessions Matched")
 
-        session_info = session_info_list[0]
-        session_switch(session_path=session_info.path)
+        session = session_list[0]
+        session_switch(session=session)
 
         return True
 
