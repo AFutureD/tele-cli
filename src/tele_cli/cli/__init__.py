@@ -21,58 +21,37 @@ from .types import SharedArgs
 
 cli = typer.Typer(
     epilog="Made by Huanan",
-    rich_markup_mode="markdown",
     add_completion=False,
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
     help="""
-The Telegram CLI.
+    The Telegram CLI.
 
-Quick Start
-1. tele auth login
-2. tele me
-3. tele dialog list
-4. tele message list <dialog_id> -n 20
-""",
+    Quick Start:
+
+    1. tele auth login
+    2. tele me
+    3. tele dialog list
+    4. tele message list <dialog_id> -n 20
+
+    WARNING: DO NOT SUPPORT BOT FOR NOW.
+    """,
 )
 dialog_cli = typer.Typer(
     no_args_is_help=True,
     help="""
-Dialog commands
-List chats, groups and channels from your account.
-""",
+    List chats, groups and channels from your account.
+    """,
 )
 message_cli = typer.Typer(
     no_args_is_help=True,
     help="""
-Message commands
-Fetch message history from a dialog with date or count filters.
-""",
+    Inspect dialog messages.
+    """,
 )
-cli.add_typer(
-    auth_cli,
-    name="auth",
-    help="""
-Authentication commands
-Login, logout, list, and switch sessions.
-""",
-)
-cli.add_typer(
-    dialog_cli,
-    name="dialog",
-    help="""
-Dialog commands
-Inspect dialogs/chats.
-""",
-)
-cli.add_typer(
-    message_cli,
-    name="message",
-    help="""
-Message commands
-Inspect dialog messages.
-""",
-)
+cli.add_typer(auth_cli, name="auth")
+cli.add_typer(dialog_cli, name="dialog")
+cli.add_typer(message_cli, name="message")
 
 
 @cli.callback()
@@ -82,7 +61,7 @@ def main(
         Path | None,
         typer.Option(
             "--config",
-            help="Path to config TOML file. [default: `~/.config/tele/config.toml`]",
+            help="Path to config TOML file. \\[default: ~/.config/tele/config.toml]",
             file_okay=True,
             writable=True,
             readable=True,
@@ -91,13 +70,14 @@ def main(
     ] = None,
     session: Annotated[
         str | None,
-        typer.Option(help="Session file name to use. List via `tele auth list`. [default: Current]"),
+        typer.Option(help="Session name. List via `tele auth list`. \\[default: Current]"),
     ] = None,
     fmt: Annotated[
         OutputFormat,
         typer.Option("--format", "-f", help="Output format."),
     ] = OutputFormat.text,
 ) -> None:
+    """Hei Hei"""
     ctx.obj = SharedArgs(fmt=fmt, config_file=config_file, session=session)
 
 
@@ -135,7 +115,7 @@ def dialog_list(ctx: typer.Context):
 
     - TYPE: Dialog type. U: user; G: group; C: channel;
     - UI: The UI State of dialog. P: pinned, A: archived; -: normal.
-    - STATE: Dialog State. M: muted, -: not muted.
+    - STATE: Dialog State. M: muted; -: not muted.
     """
 
     cli_args: SharedArgs = ctx.obj
@@ -157,33 +137,39 @@ def dialog_list(ctx: typer.Context):
 @message_cli.command(name="list")
 def messages_list(
     ctx: typer.Context,
-    dialog_id: Annotated[int, typer.Argument(help="Dialog peer ID to fetch messages from.")],
-    from_str: Annotated[str | None, typer.Option("--from", help="Start boundary (natural language date).")] = None,
-    to_str: Annotated[str | None, typer.Option("--to", help="End boundary (natural language date).")] = None,
-    range_str: Annotated[str | None, typer.Option("--range", help="Natural language date range (overrides --from/--to).")] = None,
+    dialog_id: Annotated[int, typer.Argument(help="Dialog peer ID (see `tele dialog list`).")],
+    from_str: Annotated[str | None, typer.Option("--from", help="Start boundary")] = None,
+    to_str: Annotated[str | None, typer.Option("--to", help="End boundary")] = None,
+    range_str: Annotated[
+        str | None,
+        typer.Option("--range", help="Natural-language date range (overrides --from/--to)."),
+    ] = None,
     num: Annotated[int | None, typer.Option("--num", "-n", help="Maximum number of messages to fetch.")] = None,
-    offset_id: Annotated[int, typer.Option("--offset_id", help="Pagination offset ID (excluded).")] = 0,
-    order: Annotated[OutputOrder, typer.Option("--order", help="Output sort order by time.")] = OutputOrder.asc,
+    offset_id: Annotated[int, typer.Option("--offset_id", help="Pagination offset message ID (excluded).")] = 0,
+    order: Annotated[
+        OutputOrder,
+        typer.Option("--order", help="Output order by time."),
+    ] = OutputOrder.asc,
 ):
     """
-    List messages in a dialog.
+    List messages from a dialog.
 
-    Uses Telegram history APIs under the hood.
+    By default (no --num and no date filters), it fetches the latest message.
 
-    Filtering rules:
-    1. Set count with --num/-n and/or a date filter.
-    2. Date filters: --from, --to, or --range.
-    3. --range takes priority over --from and --to.
-    4. If no count and no date filter are provided, it fetches the latest one message.
+    Filtering:
+    - Limit with --num/-n.
+    - Date filters: --from, --to, or --range.
+    - --range takes priority over --from and --to.
 
     Date input:
-    - --from and --to use `dateparser.parse`, e.g. "+1d", "yesterday", "2 weeks ago".
-    - --range uses `dateparser.search.search_dates`, e.g. "last week", "next month", "this week".
+    - --from/--to use `dateparser.parse`, e.g. "+1d", "yesterday", "2 weeks ago".
+    - --range uses `dateparser.search.search_dates`, e.g. "last week", "next month".
+      Special case: "this week" is treated as Sunday..Saturday.
 
     Examples:
     1. `tele message list 1375282077 -n 10`
     2. `tele message list 1375282077 --range "last week"`
-    3. `tele message list 1375282077 --from "yestarday"`
+    3. `tele message list 1375282077 --from "2025-02-05" --to "yestarday"`
     """
     cli_args: SharedArgs = ctx.obj
 
@@ -207,7 +193,7 @@ def messages_list(
             assert start_date is not None
             date_span = [start_date, start_date + timedelta(days=6)]
         elif range_str:
-            dates = search_dates(range_str, settings={"RETURN_TIME_SPAN": True})
+            dates = search_dates(range_str, settings={"RETURN_TIME_SPAN": True}) or []
             if len(dates) == 2:
                 # https://github.com/scrapinghub/dateparser/blob/cd5f226454e0ed3fe93164e7eff55b00f57e57c7/dateparser/search/search.py#L202
                 start = next((x for (s, x) in dates if "start" in s), None)

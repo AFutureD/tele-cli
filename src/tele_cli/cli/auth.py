@@ -13,23 +13,27 @@ from tele_cli.utils.fmt import format_session_info_list
 
 auth_cli = typer.Typer(
     no_args_is_help=True,
-    rich_markup_mode="rich",
     help="""
-[bold]Authentication commands[/bold]
-Manage Telegram login sessions.
-""",
+    Authenticate and Session Management.
+    """,
 )
 
 
 @auth_cli.command(
     name="login",
-    help="Login with phone/code/password and create a local session.",
+    help="""
+    Log in to Telegram and create a local session.
+
+    Notes:
+        If no session is active, the new session becomes active.
+        If a session is already active, it remains active; the newly logged-in session is not activated unless you pass --switch.
+    """,
 )
 def auth_login(
     ctx: typer.Context,
     switch_as_current: Annotated[
         bool,
-        typer.Option("--switch", "-s", help="Automatic set the login session as current."),
+        typer.Option("--switch", "-s", help="Automatic set the login session as active one."),
     ] = False,
 ):
     cli_args: SharedArgs = ctx.obj
@@ -115,7 +119,16 @@ def auth_list(ctx: typer.Context):
         raise typer.Exit(code=1)
 
 
-@auth_cli.command(name="switch", help="Switch [green]Current.session[/green] to a matching local session.")
+@auth_cli.command(
+    name="switch",
+    help="""
+    Switch the active Telegram account.
+
+    This command switches the active session used by subsequent commands.
+
+    To list authenticated accounts, run `tele auth list`.
+    """,
+)
 def auth_switch(
     ctx: typer.Context,
     user_id: Annotated[
