@@ -190,6 +190,8 @@ def messages_list(
     1. `tele message list 1375282077 -n 10`
     2. `tele message list 1375282077 --range "last week"`
     3. `tele message list 1375282077 --from "2025-02-05" --to "yestarday"`
+    4. `tele message list 1375282077 --from "-5d"`
+    5. `tele message list 1375282077 --from "today" -n 100`
     """
     cli_args: SharedArgs = ctx.obj
 
@@ -202,10 +204,12 @@ def messages_list(
         date_from: datetime | None = None
         if from_str:
             date_from = dateparser.parse(from_str)
+            date_from = date_from and date_from.replace(hour=0, minute=0, second=0, microsecond=0)
 
         date_to: datetime | None = None
         if to_str:
             date_to = dateparser.parse(to_str)
+            date_to = date_to and date_to.replace(hour=23, minute=59, second=59, microsecond=0)
 
         date_span: list[datetime] | None = None
         if range_str and range_str == "this week":
