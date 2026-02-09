@@ -1,6 +1,9 @@
 ---
-name: Telegram CLI Usage Guide
+name: telegram-cli
 description: Use `tele` to authenticate, list dialogs, and fetch messages from Telegram.
+metadata:
+  author: Huanan
+  version: "0.1.0"
 ---
 
 # Telegram CLI Usage Guide
@@ -97,4 +100,33 @@ Examples:
 
 ## Send Message
 
-// TODO:
+Send a text message to a user, group, or channel:
+
+- Basic: `tele message send <receiver> "<message>"`
+- Force peer id: `tele message send -t peer_id "<peer_id>" "<message>"`
+
+Receiver formats:
+
+- Username: `alice` or `@alice`
+- Phone: `"+15551234567"`
+- Dialog name: `"My Group"`
+- Numeric peer id: `"-1001234567890"` (common for channels)
+
+How the receiver is resolved:
+
+- With `--entity/-t peer_id`, `<receiver>` is treated as a numeric peer id (no name matching).
+- Without `--entity`, it first tries Telegram/Telethon resolution (username/phone/id). If that fails, it scans your dialogs and picks the first match by:
+  - dialog name contains `<receiver>` (case-insensitive), or
+  - dialog id / entity id equals `<receiver>` (string compare).
+
+Examples:
+
+- `tele message send alice "hi"`
+- `tele message send "+15551234567" "hi"`
+- `tele message send "My Group" "hi"`
+- `tele message send -t peer_id "-1001234567890" "hi"`
+
+Notes:
+
+- Quote negative peer ids (or use `--`) so the shell/CLI does not treat them as options.
+- The command prints no output on success; verify by listing messages: `tele -f json message list <dialog_id> -n 5`.

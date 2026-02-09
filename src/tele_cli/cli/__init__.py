@@ -3,12 +3,10 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
-import re
 from typing import Annotated, Tuple
 
 from tele_cli.types.tl import EntityType
 import telethon
-from telethon.hints import EntityLike
 import typer
 from telethon.tl.custom import Dialog
 from telethon.tl.types import Message
@@ -147,7 +145,7 @@ def dialog_list(ctx: typer.Context):
         app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
 
         dialog_list: list[Dialog] = await app.list_dialogs()
-        print(utils.fmt.format_dialog_list(dialog_list, cli_args.fmt))
+        print(utils.fmt.format_dialog_list(dialog_list, cli_args.fmt), fmt=cli_args.fmt)
         return True
 
     ok = asyncio.run(_run())

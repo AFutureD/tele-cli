@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import inspect
-import re
 from typing import Callable
 
 import telethon
 from telethon import TelegramClient
 from telethon import hints
 from telethon.custom import Dialog
-from telethon.errors import RPCError, UsernameInvalidError
+from telethon.errors import RPCError
 
 from . import types
 from .session import TGSession, load_session, session_ensure_current_valid
