@@ -56,7 +56,7 @@ def _format_dialog_to_str(x: telethon.custom.Dialog) -> str:
         unread_message = "".join([f"{' ' * message_prefix_space_count}| " + m for m in x.message.message.splitlines(keepends=True)])
         message_line = "\n" + f"{' ' * message_prefix_space_count}* id: {x.message.id} at {x.message.date} \n" + unread_message
 
-    return f"[{_color}]" + f"[{dialog_type}.{state}.{mute}] {unread} [{x.entity.id:<10}] {x.name} " + message_line + f"[/{_color}]"
+    return f"[{_color}]" + f"[{dialog_type}.{state}.{mute}] {unread} [{x.id:<10}] {x.name} " + message_line + f"[/{_color}]"
 
 
 def format_dialog_list(dialog_list: list[telethon.custom.Dialog], fmt: None | OutputFormat = None) -> str:

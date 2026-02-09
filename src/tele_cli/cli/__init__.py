@@ -3,9 +3,12 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
+import re
 from typing import Annotated, Tuple
 
+from tele_cli.types.tl import EntityType
 import telethon
+from telethon.hints import EntityLike
 import typer
 from telethon.tl.custom import Dialog
 from telethon.tl.types import Message
@@ -142,12 +145,10 @@ def dialog_list(ctx: typer.Context):
 
     async def _run() -> bool:
         app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
-        async with app.client() as client:
-            dialog_list: list[Dialog] = [item async for item in client.iter_dialogs()]
 
-            print(utils.fmt.format_dialog_list(dialog_list, cli_args.fmt), fmt=cli_args.fmt)
-
-        return False
+        dialog_list: list[Dialog] = await app.list_dialogs()
+        print(utils.fmt.format_dialog_list(dialog_list, cli_args.fmt))
+        return True
 
     ok = asyncio.run(_run())
     if not ok:
@@ -263,6 +264,57 @@ def messages_list(
                 messages = list(reversed(messages))
 
             print(utils.fmt.format_message_list(messages, cli_args.fmt), fmt=cli_args.fmt)
+
+        return True
+
+    ok = asyncio.run(_run())
+    if not ok:
+        raise typer.Exit(code=1)
+
+
+@message_cli.command(name="send", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def message_send(
+    ctx: typer.Context,
+    receiver: Annotated[
+        str,
+        typer.Argument(
+            help="Receiver: username/phone/peer_id",
+        ),
+    ],
+    content: Annotated[str, typer.Argument(help="Message text.")] = "",
+    entity_type: Annotated[
+        EntityType | None,
+        typer.Option("--entity", "-t", help="How to interpret RECEIVER (e.g. `peer_id`)."),
+    ] = None,
+):
+    """
+    Send a message to RECEIVER.
+
+    RECEIVER can be a username, phone number, dialog name, or a numeric `peer_id`.
+    List known dialogs with `tele dialog list`.
+
+    How RECEIVER is resolved:
+    - With `--entity/-t <type>`, RECEIVER is passed through as that type and no matching is attempted.
+    - Without `--entity`, it tries to match the most likely dialog; if nothing matches, RECEIVER is passed through unchanged.
+
+    Examples:
+    1. `tele message send alice "hi"`
+    2. `tele message send "+15551234567" "hi"`
+    3. `tele message send "My Group" "hi"`
+    4. `tele message send -t peer_id "-1001234567890" "hi"`
+    """
+    cli_args: SharedArgs = ctx.obj
+
+    entity: int | str
+    match entity_type:
+        case EntityType.peer_id:
+            entity = int(receiver)
+        case _:
+            entity = receiver
+
+    async def _run() -> bool:
+        app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
+        await app.send_message(entity, content)
 
         return True
 
