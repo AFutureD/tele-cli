@@ -3,13 +3,13 @@ import asyncio
 from typing import Annotated
 
 import typer
-from rich import print
 
 from tele_cli import utils
 from tele_cli.app import TeleCLI
 from tele_cli.config import load_config
 from tele_cli.session import list_session_list, session_switch, TGSession
 from tele_cli.utils.fmt import format_session_info_list
+from tele_cli.utils import print
 
 auth_cli = typer.Typer(
     no_args_is_help=True,
@@ -39,19 +39,22 @@ def auth_login(
     cli_args: SharedArgs = ctx.obj
 
     def get_phone() -> str:
-        print("""
-        Telegram login requires your phone number.
+        print(
+            """
+            Telegram login requires your phone number.
 
-        1. Enter your Telegram phone number with [bold green]country code[/bold green].
-        2. Telegram will send a [bold green]login[/bold green] code to your Telegram app (from the official [bold red]Telegram account[/bold red]).
-        3. Enter that [bold green]code[/bold green] in the next step.
-        4. Your [bold green]password[/bold green] will be asked, if Two-Step Verification is enabled (Settings → Privacy and Security).
+            1. Enter your Telegram phone number with [bold green]country code[/bold green].
+            2. Telegram will send a [bold green]login[/bold green] code to your Telegram app (from the official [bold red]Telegram account[/bold red]).
+            3. Enter that [bold green]code[/bold green] in the next step.
+            4. Your [bold green]password[/bold green] will be asked, if Two-Step Verification is enabled (Settings → Privacy and Security).
 
-        [bold red]IMPORTANT: Your input will not be stored or shared.[/bold red]
+            [bold red]IMPORTANT: Your input will not be stored or shared.[/bold red]
 
-        Example: 8615306541234
+            Example: 8615306541234
 
-        """)
+            """,
+            fmt=cli_args.fmt,
+        )
 
         return typer.prompt("Please enter phone number", type=str)
 
@@ -76,7 +79,7 @@ def auth_login(
         if switch_as_current and isinstance(session, TGSession):
             session_switch(session=session)
 
-        print(f"Hi {utils.fmt.format_me(me, cli_args.fmt)}")
+        print(f"Hi {utils.fmt.format_me(me, cli_args.fmt)}", fmt=cli_args.fmt)
         return True
 
     ok = asyncio.run(_run())
@@ -93,7 +96,7 @@ def auth_logout(ctx: typer.Context):
 
         me = await app.logout()
         if me:
-            print(f"Bye {utils.fmt.format_me(me, cli_args.fmt)}")
+            print(f"Bye {utils.fmt.format_me(me, cli_args.fmt)}", fmt=cli_args.fmt)
         return True
 
     ok = asyncio.run(_run())
@@ -111,7 +114,7 @@ def auth_list(ctx: typer.Context):
         session_info_list = await asyncio.gather(*(session.get_info() for session in session_list))
         session_info_list = [session_info for session_info in session_info_list if session_info is not None]
 
-        print(format_session_info_list(session_info_list, fmt=cli_args.fmt))
+        print(format_session_info_list(session_info_list, fmt=cli_args.fmt), fmt=cli_args.fmt)
         return True
 
     ok = asyncio.run(_run())

@@ -7,7 +7,6 @@ from typing import Annotated, Tuple
 
 import telethon
 import typer
-from rich import print
 from telethon.tl.custom import Dialog
 from telethon.tl.types import Message
 
@@ -16,6 +15,7 @@ from tele_cli.app import TeleCLI
 from tele_cli.config import load_config
 from tele_cli.types import OutputFormat, OutputOrder
 from tele_cli.constant import VERSION
+from tele_cli.utils import print
 
 from .auth import auth_cli
 from .types import SharedArgs
@@ -116,7 +116,7 @@ def me_get(ctx: typer.Context) -> None:
         if not me:
             return False
 
-        print(utils.fmt.format_me(me, cli_args.fmt))
+        print(utils.fmt.format_me(me, cli_args.fmt), fmt=cli_args.fmt)
         return True
 
     ok = asyncio.run(_run())
@@ -145,7 +145,7 @@ def dialog_list(ctx: typer.Context):
         async with app.client() as client:
             dialog_list: list[Dialog] = [item async for item in client.iter_dialogs()]
 
-            print(utils.fmt.format_dialog_list(dialog_list, cli_args.fmt))
+            print(utils.fmt.format_dialog_list(dialog_list, cli_args.fmt), fmt=cli_args.fmt)
 
         return False
 
@@ -258,7 +258,7 @@ def messages_list(
             if order == OutputOrder.asc:
                 messages = list(reversed(messages))
 
-            print(utils.fmt.format_message_list(messages, cli_args.fmt))
+            print(utils.fmt.format_message_list(messages, cli_args.fmt), fmt=cli_args.fmt)
 
         return True
 
