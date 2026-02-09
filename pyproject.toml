@@ -1,8 +1,12 @@
 [project]
 name = "tele-cli"
-version = "0.1.0"
-description = "Add your description here"
+version = "2026.1.0"
+description = "Telegram CLI"
 readme = "README.md"
+authors = [
+  {name = "Huanan"}
+]
+
 requires-python = ">=3.11"
 dependencies = [
     "arrow>=1.4.0",

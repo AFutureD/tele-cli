@@ -3,7 +3,7 @@ name: telegram-cli
 description: Use `tele` to authenticate, list dialogs, and fetch messages from Telegram.
 metadata:
   author: Huanan
-  version: "0.1.0"
+  version: "2026.1.0"
 ---
 
 # Telegram CLI Usage Guide
@@ -15,10 +15,11 @@ Use `tele` to authenticate, list dialogs, and fetch messages from Telegram direc
 
 ## Setup
 
-- Check if `tele` is already installed: `which tele`
-- Install with `uv` (recommended): `uv tool install git+https://github.com/AFutureD/tele-cli`
+- Requires `uv`.
+- Install/upgrade (one-time per session): `uv tool install --upgrade git+https://github.com/AFutureD/tele-cli`
 - Verify install: `tele -V`
-- Config file: `tele` reads `~/.config/tele/config.toml` by default and will create it on first run;
+- Per terminal session: run `tele -h` once, then confirm auth with `tele -f json me` (log in if needed).
+
 
 ## Notice
 
@@ -130,3 +131,7 @@ Notes:
 
 - Quote negative peer ids (or use `--`) so the shell/CLI does not treat them as options.
 - The command prints no output on success; verify by listing messages: `tele -f json message list <dialog_id> -n 5`.
+
+## Additional Informations
+
+- Config file: `tele` reads `~/.config/tele/config.toml` by default and will create it on first run;
