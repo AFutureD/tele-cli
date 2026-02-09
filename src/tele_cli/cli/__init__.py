@@ -15,6 +15,7 @@ from tele_cli import utils
 from tele_cli.app import TeleCLI
 from tele_cli.config import load_config
 from tele_cli.types import OutputFormat, OutputOrder
+from tele_cli.constant import VERSION
 
 from .auth import auth_cli
 from .types import SharedArgs
@@ -54,9 +55,27 @@ cli.add_typer(dialog_cli, name="dialog")
 cli.add_typer(message_cli, name="message")
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"tele-cli, version {VERSION}")
+        raise typer.Exit()
+
+
 @cli.callback()
 def main(
     ctx: typer.Context,
+    # meta
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            "-V",
+            help="Show version and exit.",
+            callback=_version_callback,
+            is_eager=True,
+        ),
+    ] = False,
+    # shared args
     config_file: Annotated[
         Path | None,
         typer.Option(
@@ -78,6 +97,7 @@ def main(
     ] = OutputFormat.text,
 ) -> None:
     """Hei Hei"""
+    _ = version
     ctx.obj = SharedArgs(fmt=fmt, config_file=config_file, session=session)
 
 
