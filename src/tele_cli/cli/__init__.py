@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Tuple
 
-from tele_cli.types.tl import EntityType
+from tele_cli.types.tl import DialogType, EntityType
 import telethon
 import typer
 from telethon.tl.custom import Dialog
@@ -14,7 +14,7 @@ from telethon.tl.types import Message
 from tele_cli import utils
 from tele_cli.app import TeleCLI
 from tele_cli.config import load_config
-from tele_cli.types import OutputFormat, OutputOrder
+from tele_cli.types import OutputFormat, OutputOrder, get_dialog_type
 from tele_cli.constant import VERSION
 from tele_cli.utils import print
 
@@ -126,17 +126,33 @@ def me_get(ctx: typer.Context) -> None:
 
 
 @dialog_cli.command(name="list")
-def dialog_list(ctx: typer.Context):
+def dialog_list(
+    ctx: typer.Context,
+    dialog_type_filters: Annotated[
+        list[DialogType] | None,
+        typer.Option("--type", "-t", help="Filter by dialog type."),
+    ] = None,
+    archived: Annotated[
+        bool,
+        typer.Option("--archived", help="Include archived dialogs (otherwise hidden)."),
+    ] = False,
+):
     """
     List dialogs from your account.
 
-    Text Foramt Template:
+    Archived dialogs are hidden by default; use `--archived` to include them.
+
+    Text Format Template:
 
     `[TYPE.UI.STATE] [UNREAD COUNT] [DIALOG_ID] NAME`
 
     - TYPE: Dialog type. U: user; G: group; C: channel;
     - UI: The UI State of dialog. P: pinned, A: archived; -: normal.
     - STATE: Dialog State. M: muted; -: not muted.
+
+    Examples:
+    - `tele dialog list -t user`
+    - `tele dialog list -t user -t channel --archived`
     """
 
     cli_args: SharedArgs = ctx.obj
@@ -144,7 +160,16 @@ def dialog_list(ctx: typer.Context):
     async def _run() -> bool:
         app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
 
-        dialog_list: list[Dialog] = await app.list_dialogs()
+        dialog_list: list[Dialog] = await app.list_dialogs(with_archived=archived)
+
+        def _filter_dialogs(dialogs: list[Dialog], dialog_types: list[DialogType] | None = None) -> list[Dialog]:
+            if not dialog_types:
+                return dialogs
+
+            return [d for d in dialogs if get_dialog_type(d) in dialog_types]
+
+        dialog_list = _filter_dialogs(dialog_list, dialog_types=dialog_type_filters)
+
         print(utils.fmt.format_dialog_list(dialog_list, cli_args.fmt), fmt=cli_args.fmt)
         return True
 

@@ -5,9 +5,11 @@ import telethon
 import toon_format
 from telethon.tl.tlobject import _json_default
 
-from tele_cli.types import OutputFormat
+from tele_cli.types import OutputFormat, get_dialog_type
 from tele_cli.types.session import SessionInfo
 import arrow
+
+from .output import get_str_len_for_int
 
 
 def format_me(me: telethon.types.User, fmt: None | OutputFormat = None) -> str:
@@ -21,7 +23,7 @@ def format_me(me: telethon.types.User, fmt: None | OutputFormat = None) -> str:
             return toon_format.encode(me.to_dict())
 
 
-def _format_dialog_to_str(x: telethon.custom.Dialog) -> str:
+def _format_dialog_to_str(x: telethon.custom.Dialog, unread_count_len: int, peer_id_len: int) -> str:
     """
     format: "[<Dialog Type>.<UI State>.<Dialog State>] <Unread Count> <Name> [entity id]"
     """
@@ -36,34 +38,30 @@ def _format_dialog_to_str(x: telethon.custom.Dialog) -> str:
     if x.archived:
         state = "A"
 
-    dialog_type = "?"
-    if x.is_user:
-        dialog_type = "U"
-    if x.is_group:
-        dialog_type = "G"
-    if x.is_channel:
-        dialog_type = "C"
+    dialog_type = str(get_dialog_type(x))
 
     mute_until = x.dialog.notify_settings.mute_until
     is_mute = mute_until is not None and mute_until > datetime.now().astimezone()
     mute = "M" if is_mute else "-"
 
-    unread = f"[{unread_color}]{(str(x.unread_count) if have_unread else ' '):<3}[/{unread_color}]"
+    unread = f"[{unread_color}]{(str(x.unread_count) if have_unread else ' '):<{unread_count_len}}[/{unread_color}]"
 
     message_line = ""
-    message_prefix_space_count = 12
+    message_prefix_space_count = 2 + 5 + 2 + unread_count_len + 2 + 2 + peer_id_len
     if x.message.message and not x.message.out and have_unread and not is_mute:
         unread_message = "".join([f"{' ' * message_prefix_space_count}| " + m for m in x.message.message.splitlines(keepends=True)])
         message_line = "\n" + f"{' ' * message_prefix_space_count}* id: {x.message.id} at {x.message.date} \n" + unread_message
 
-    return f"[{_color}]" + f"[{dialog_type}.{state}.{mute}] {unread} [{x.id:<10}] {x.name} " + message_line + f"[/{_color}]"
+    return f"[{_color}]" + f"[{dialog_type}.{state}.{mute}] {unread} [{x.id:<{peer_id_len}}] {x.name} " + message_line + f"[/{_color}]"
 
 
 def format_dialog_list(dialog_list: list[telethon.custom.Dialog], fmt: None | OutputFormat = None) -> str:
     output_fmt = fmt or OutputFormat.text
     match output_fmt:
         case OutputFormat.text:
-            return "\n".join([_format_dialog_to_str(x) for x in sorted(dialog_list, key=lambda x: x.archived)])
+            max_unread_count_len = max(list(map(lambda x: get_str_len_for_int(x.unread_count), dialog_list)))
+            max_peer_id_len = max(list(map(lambda x: get_str_len_for_int(x.id), dialog_list)))
+            return "\n".join([_format_dialog_to_str(x, max_unread_count_len, max_peer_id_len) for x in sorted(dialog_list, key=lambda x: x.archived)])
 
         case OutputFormat.json:
 

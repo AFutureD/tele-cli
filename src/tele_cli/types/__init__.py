@@ -1,6 +1,6 @@
 from .config import Config
 from .error import ConfigError, CurrentSessionPathNotValidError
 from .output import OutputFormat, OutputOrder
-from .tl import EntityType
+from .tl import DialogType, EntityType, get_dialog_type
 
-__all__ = ["OutputFormat", "OutputOrder", "Config", "ConfigError", "CurrentSessionPathNotValidError", "EntityType"]
+__all__ = ["OutputFormat", "OutputOrder", "Config", "ConfigError", "CurrentSessionPathNotValidError", "EntityType", "DialogType", "get_dialog_type"]
