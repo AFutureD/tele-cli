@@ -6,10 +6,8 @@ from pathlib import Path
 from typing import Annotated, Tuple
 
 from tele_cli.types.tl import DialogType, EntityType
-import telethon
 import typer
-from telethon.tl.custom import Dialog
-from telethon.tl.types import Message
+from telethon.tl.custom import Dialog, Message
 
 from tele_cli import utils
 from tele_cli.app import TeleCLI
@@ -263,7 +261,7 @@ def messages_list(
         app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
 
         (date_start, date_end) = date_range
-        earliest_message: telethon.types.Message | None = None
+        earliest_message: Message | None = None
         if date_start:
             async with app.client() as client:
                 ret: list[Message] = [msg async for msg in client.iter_messages(dialog_id, offset_date=date_start, limit=1, offset_id=-1)]

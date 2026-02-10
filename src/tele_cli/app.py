@@ -163,4 +163,4 @@ class TeleCLI:
     async def list_dialogs(self, with_archived: bool = False) -> list[Dialog]:
         async with self.client() as client:
             archived = None if with_archived else False
-            return [item async for item in client.iter_dialogs(archived=archived)]
+            return [item async for item in client.iter_dialogs(archived=archived)]  # type: ignore[arg-type]

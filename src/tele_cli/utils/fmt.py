@@ -2,6 +2,7 @@ from datetime import datetime
 import json
 
 import telethon
+from telethon.custom import Message
 import toon_format
 from telethon.tl.tlobject import _json_default
 
@@ -10,6 +11,10 @@ from tele_cli.types.session import SessionInfo
 import arrow
 
 from .output import get_str_len_for_int
+
+
+def json_default_callback(value):
+    return _json_default(value)
 
 
 def format_me(me: telethon.types.User, fmt: None | OutputFormat = None) -> str:
@@ -78,13 +83,13 @@ def format_dialog_list(dialog_list: list[telethon.custom.Dialog], fmt: None | Ou
                 }
 
             obj_list = [f(item) for item in dialog_list]
-            return json.dumps(obj_list, default=_json_default, ensure_ascii=False)
+            return json.dumps(obj_list, default=json_default_callback, ensure_ascii=False)
 
         case OutputFormat.toon:
             raise NotImplementedError("Not Supported Format For Dialog")
 
 
-def _format_message_to_str(msg: telethon.types.Message, relative_time: bool = True) -> str:
+def _format_message_to_str(msg: Message, relative_time: bool = True) -> str:
     sender_name = "unknown"
     if msg.out:
         sender_name = "me"
@@ -102,14 +107,14 @@ def _format_message_to_str(msg: telethon.types.Message, relative_time: bool = Tr
     return f"* {msg.id} ({date_str}) - {sender_name}\n" + "\n" + message + "\n"
 
 
-def format_message_list(messages: list[telethon.types.Message], fmt: None | OutputFormat = None) -> str:
+def format_message_list(messages: list[Message], fmt: None | OutputFormat = None) -> str:
     output_fmt = fmt or OutputFormat.text
     match output_fmt:
         case OutputFormat.text:
             return "\n".join([_format_message_to_str(msg) for msg in messages])
         case OutputFormat.json:
             obj_list = [msg.to_dict() for msg in messages]
-            return json.dumps(obj_list, default=_json_default, ensure_ascii=False)
+            return json.dumps(obj_list, default=json_default_callback, ensure_ascii=False)
         case OutputFormat.toon:
             raise NotImplementedError("Not Supported Format For Message List")
 
