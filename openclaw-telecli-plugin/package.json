@@ -1,0 +1,31 @@
+{
+  "name": "@openclaw/tele-cli",
+  "version": "2026.2.12",
+  "private": true,
+  "description": "OpenClaw channel plugin backed by tele-cli daemon",
+  "type": "module",
+  "dependencies": {},
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "telecli",
+      "label": "Tele CLI",
+      "selectionLabel": "Tele CLI (daemon)",
+      "docsPath": "/channels/telegram",
+      "docsLabel": "telegram",
+      "blurb": "Use local tele-cli daemon events for Telegram messaging.",
+      "order": 78,
+      "quickstartAllowFrom": true
+    },
+    "install": {
+      "npmSpec": "@openclaw/tele-cli",
+      "localPath": "openclaw-telecli-plugin",
+      "defaultChoice": "npm"
+    }
+  }
+}

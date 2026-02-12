@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
+import json
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Tuple
+from typing import Any, Annotated, Tuple
 
 from tele_cli.types.tl import DialogType, EntityType
 import typer
+from telethon import events
+from telethon import hints
 from telethon.tl.custom import Dialog, Message
 
 from tele_cli import utils
-from tele_cli.app import TeleCLI
+from tele_cli.app import TGClient, TeleCLI
 from tele_cli.config import load_config
 from tele_cli.types import OutputFormat, OutputOrder, get_dialog_type
 from tele_cli.constant import VERSION
@@ -49,9 +54,16 @@ message_cli = typer.Typer(
     Inspect dialog messages.
     """,
 )
+daemon_cli = typer.Typer(
+    no_args_is_help=True,
+    help="""
+    Run long-lived worker process.
+    """,
+)
 cli.add_typer(auth_cli, name="auth")
 cli.add_typer(dialog_cli, name="dialog")
 cli.add_typer(message_cli, name="message")
+cli.add_typer(daemon_cli, name="daemon")
 
 
 def _version_callback(value: bool) -> None:
@@ -340,5 +352,253 @@ def message_send(
         return True
 
     ok = asyncio.run(_run())
+    if not ok:
+        raise typer.Exit(code=1)
+
+
+@daemon_cli.command(name="start")
+def daemon_start(
+    ctx: typer.Context,
+    rpc_stdio: Annotated[
+        bool,
+        typer.Option(
+            "--rpc-stdio",
+            help="Enable newline-delimited JSON RPC over stdio.",
+        ),
+    ] = False,
+) -> None:
+    """
+    Start daemon and print all incoming new messages.
+    """
+
+    cli_args: SharedArgs = ctx.obj
+
+    async def _resolve_entity_with_client(client: TGClient, target: str | int) -> hints.EntityLike:
+        # Fast path: Telethon resolver (username, phone, id).
+        try:
+            ret = await client.get_input_entity(target)
+            return ret
+        except Exception:
+            pass
+
+        if isinstance(target, int):
+            return target
+
+        target_norm = target.casefold()
+        async for dialog in client.iter_dialogs():
+            name = (dialog.name or "").casefold()
+            if target_norm and target_norm in name:
+                return dialog.entity
+
+            if str(dialog.id) == target or str(dialog.entity.id) == target:
+                return dialog.entity
+
+        return target
+
+    async def _send_message_with_connected_client(
+        client: TGClient,
+        receiver: str | int,
+        message: str,
+        entity_type_str: str | None = None,
+    ) -> bool:
+        entity: str | int = receiver
+        if entity_type_str == EntityType.peer_id.value:
+            entity = int(receiver)
+
+        resolved = await _resolve_entity_with_client(client=client, target=entity)
+        await client.send_message(
+            resolved,
+            message,
+        )
+        return True
+
+    async def _run() -> bool:
+        app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
+        async with app.client() as client:
+            is_authorized = await client.is_user_authorized()
+            if not is_authorized:
+                return False
+
+            emit_lock = asyncio.Lock()
+            stop_event = asyncio.Event()
+
+            def _json_default(value: object) -> object:
+                if isinstance(value, datetime):
+                    return value.isoformat()
+                if isinstance(value, timedelta):
+                    return value.total_seconds()
+                if isinstance(value, bytes):
+                    try:
+                        return value.decode("utf-8")
+                    except UnicodeDecodeError:
+                        return value.hex()
+                if isinstance(value, Path):
+                    return str(value)
+                to_dict = getattr(value, "to_dict", None)
+                if callable(to_dict):
+                    try:
+                        return to_dict()
+                    except Exception:
+                        pass
+                return repr(value)
+
+            async def _emit_json(obj: dict[str, object]) -> None:
+                line = json.dumps(obj, ensure_ascii=False, default=_json_default)
+                async with emit_lock:
+                    while True:
+                        try:
+                            builtins.print(line, flush=True)
+                            return
+                        except BlockingIOError:
+                            try:
+                                loop = asyncio.get_running_loop()
+                                writable = loop.create_future()
+
+                                def _on_writable() -> None:
+                                    if not writable.done():
+                                        writable.set_result(None)
+
+                                fd = sys.stdout.fileno()
+                                loop.add_writer(fd, _on_writable)
+                                try:
+                                    await writable
+                                finally:
+                                    loop.remove_writer(fd)
+                            except Exception:
+                                await asyncio.sleep(0.01)
+                        except BrokenPipeError:
+                            # Downstream consumer closed stdout; stop emitting.
+                            return
+
+            async def on_new_message(event: events.NewMessage.Event) -> None:
+                msg = event.message
+                if not isinstance(msg, Message):
+                    return
+                if not rpc_stdio:
+                    print(utils.fmt.format_message_list([msg], cli_args.fmt), fmt=cli_args.fmt)
+                    return
+                try:
+                    await _emit_json(
+                        {
+                            "type": "event",
+                            "event": "new_message",
+                            "payload": msg.to_dict(),
+                        }
+                    )
+                except Exception:
+                    # Never crash the Telethon update loop because of stdout back-pressure.
+                    return
+
+            client.add_event_handler(on_new_message, events.NewMessage())
+
+            async def _rpc_loop() -> None:
+                loop = asyncio.get_running_loop()
+                reader = asyncio.StreamReader()
+                protocol = asyncio.StreamReaderProtocol(reader)
+                await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+
+                while True:
+                    raw_line = await reader.readline()
+                    if not raw_line:
+                        break
+                    line = raw_line.decode("utf-8", errors="ignore").strip()
+                    if not line:
+                        continue
+
+                    req_id: str | None = None
+                    try:
+                        packet = json.loads(line)
+                        if not isinstance(packet, dict):
+                            raise ValueError("request must be an object")
+                        req_id = str(packet.get("id", ""))
+                        method = packet.get("method")
+                        params = packet.get("params")
+                        if not isinstance(method, str):
+                            raise ValueError("method must be a string")
+                        if params is None:
+                            params = {}
+                        if not isinstance(params, dict):
+                            raise ValueError("params must be an object")
+
+                        if method == "ping":
+                            await _emit_json({"type": "response", "id": req_id, "ok": True, "result": {"pong": True}})
+                            continue
+
+                        if method == "send_message":
+                            receiver_raw = params.get("receiver")
+                            if receiver_raw is None:
+                                raise ValueError("receiver is required")
+                            message_raw = params.get("message", "")
+                            entity_type_raw = params.get("entity_type")
+                            receiver = str(receiver_raw)
+                            message = str(message_raw)
+                            entity_type_str = str(entity_type_raw) if entity_type_raw is not None else None
+
+                            await _send_message_with_connected_client(
+                                client=client,
+                                receiver=receiver,
+                                message=message,
+                                entity_type_str=entity_type_str,
+                            )
+                            await _emit_json(
+                                {
+                                    "type": "response",
+                                    "id": req_id,
+                                    "ok": True,
+                                    "result": {
+                                        "sent": True,
+                                        "receiver": receiver,
+                                    },
+                                }
+                            )
+                            continue
+
+                        if method == "stop":
+                            stop_event.set()
+                            await _emit_json({"type": "response", "id": req_id, "ok": True, "result": {"stopping": True}})
+                            continue
+
+                        raise ValueError(f"unknown method: {method}")
+                    except Exception as err:
+                        await _emit_json(
+                            {
+                                "type": "response",
+                                "id": req_id or "",
+                                "ok": False,
+                                "error": str(err),
+                            }
+                        )
+
+            rpc_task: asyncio.Task[None] | None = None
+            if rpc_stdio:
+                await _emit_json({"type": "ready", "mode": "rpc_stdio"})
+                rpc_task = asyncio.create_task(_rpc_loop())
+            else:
+                print("daemon started, waiting for new messages...", fmt=cli_args.fmt)
+
+            wait_tasks: set[asyncio.Task[Any]] = {
+                asyncio.ensure_future(client.disconnected),
+                asyncio.create_task(stop_event.wait()),
+            }
+            if rpc_task:
+                wait_tasks.add(rpc_task)
+
+            done, pending = await asyncio.wait(wait_tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in pending:
+                task.cancel()
+
+            if stop_event.is_set():
+                await client.disconnect()
+            else:
+                for task in done:
+                    if task is rpc_task and rpc_task.exception():
+                        raise rpc_task.exception()  # type: ignore[misc]
+
+        return True
+
+    try:
+        ok = asyncio.run(_run())
+    except KeyboardInterrupt:
+        raise typer.Exit(code=0)
     if not ok:
         raise typer.Exit(code=1)

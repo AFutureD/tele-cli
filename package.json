@@ -1,0 +1,12 @@
+{
+  "name": "tele-cli",
+  "version": "2026.2.12",
+  "private": true,
+  "description": "tele-cli with bundled OpenClaw channel plugin",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./openclaw-telecli-plugin/index.ts"
+    ]
+  }
+}

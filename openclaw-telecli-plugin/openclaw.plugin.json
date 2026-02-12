@@ -1,0 +1,9 @@
+{
+  "id": "tele-cli",
+  "channels": ["telecli"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
