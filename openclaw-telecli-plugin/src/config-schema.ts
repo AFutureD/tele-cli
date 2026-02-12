@@ -21,6 +21,8 @@ export type TeleCliAccountConfig = {
   chunkMode?: "length" | "newline";
   blockStreaming?: boolean;
   responsePrefix?: string;
+  sessionIsolate?: boolean;
+  ignorePeerIds?: Array<string | number>;
 };
 
 export type TeleCliConfig = TeleCliAccountConfig & {
@@ -55,6 +57,8 @@ const accountSchema = {
     chunkMode: { type: "string", enum: ["length", "newline"] },
     blockStreaming: { type: "boolean" },
     responsePrefix: { type: "string" },
+    sessionIsolate: { type: "boolean" },
+    ignorePeerIds: stringOrNumberArraySchema,
   },
 } as const;
 

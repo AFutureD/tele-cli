@@ -127,6 +127,19 @@ function parseTimestamp(value: unknown): number | undefined {
   return undefined;
 }
 
+function buildIsolatedDirectSessionKey(params: {
+  agentId: string;
+  channelId: string;
+  accountId: string;
+  senderId: string;
+}): string {
+  const sender = params.senderId.trim().toLowerCase();
+  if (!sender) {
+    return `agent:${params.agentId}:main`;
+  }
+  return `agent:${params.agentId}:${params.channelId}:${params.accountId}:direct:${sender}`;
+}
+
 function normalizeAllowEntry(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) {
@@ -221,6 +234,17 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
       toPeerIdString(msg.from_id) ??
       toPeerIdString(msg.sender_id) ??
       (direct ? peerId : "unknown");
+    const ignorePeerIds = normalizeAllowList(account.config.ignorePeerIds);
+    const isUserDialog =
+      direct ||
+      Boolean(asPeerLike(msg.from_id)?.user_id) ||
+      Boolean(asPeerLike(msg.sender_id)?.user_id);
+    const ignoredPeer = ignorePeerIds.includes(normalizeAllowEntry(peerId));
+    const ignoredSender = ignorePeerIds.includes(normalizeAllowEntry(senderId));
+
+    if (isUserDialog && (ignoredPeer || ignoredSender)) {
+      return;
+    }
 
     const dmPolicy = account.config.dmPolicy ?? "pairing";
     const groupPolicy = account.config.groupPolicy ?? cfg.channels?.defaults?.groupPolicy ?? "allowlist";
@@ -323,6 +347,15 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
         id: direct ? senderId : peerId,
       },
     });
+    const sessionKey =
+      direct && account.config.sessionIsolate === true
+        ? buildIsolatedDirectSessionKey({
+            agentId: route.agentId,
+            channelId: CHANNEL_ID,
+            accountId: route.accountId,
+            senderId,
+          })
+        : route.sessionKey;
 
     const mentionRegexes = core.channel.mentions.buildMentionRegexes(cfg, route.agentId);
     const wasMentioned = core.channel.mentions.matchesMentionPatterns(rawBody, mentionRegexes);
@@ -360,7 +393,7 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
       CommandBody: rawBody,
       From: direct ? `telecli:${senderId}` : `telecli:group:${peerId}`,
       To: to,
-      SessionKey: route.sessionKey,
+      SessionKey: sessionKey,
       AccountId: route.accountId,
       ChatType: chatType,
       ConversationLabel: fromLabel,
@@ -380,8 +413,16 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
     });
     await core.channel.session.recordInboundSession({
       storePath,
-      sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
+      sessionKey: ctxPayload.SessionKey ?? sessionKey,
       ctx: ctxPayload,
+      updateLastRoute: direct
+        ? {
+            sessionKey: route.mainSessionKey,
+            channel: CHANNEL_ID,
+            to: senderId,
+            accountId: route.accountId,
+          }
+        : undefined,
       onRecordError: (err) => {
         logger.error(`failed updating session meta: ${String(err)}`);
       },
@@ -524,67 +565,71 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
     }
   });
 
+  const enqueueInbound = (work: () => Promise<void>): void => {
+    chain = chain.then(work).catch((err) => {
+      logger.error(`tele-cli inbound handler error: ${String(err)}`);
+    });
+  };
+
   rlOut.on("line", (line) => {
     const trimmed = line.trim();
     if (!trimmed) {
       return;
     }
-    chain = chain
-      .then(async () => {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(trimmed);
-        } catch {
-          if (core.logging.shouldLogVerbose()) {
-            logger.debug?.(`tele-cli non-json line: ${trimmed}`);
-          }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      if (core.logging.shouldLogVerbose()) {
+        logger.debug?.(`tele-cli non-json line: ${trimmed}`);
+      }
+      return;
+    }
+
+    if (parsed && typeof parsed === "object" && "type" in parsed) {
+      const packet = parsed as TeleDaemonPacket;
+      if (packet.type === "ready") {
+        opts.statusSink?.({ connected: true });
+        return;
+      }
+      // Responses must be handled immediately; do not queue behind inbound work.
+      if (packet.type === "response") {
+        const item = pending.get(packet.id);
+        if (!item) {
           return;
         }
-
-        if (parsed && typeof parsed === "object" && "type" in parsed) {
-          const packet = parsed as TeleDaemonPacket;
-          if (packet.type === "ready") {
-            opts.statusSink?.({ connected: true });
-            return;
-          }
-          if (packet.type === "response") {
-            const item = pending.get(packet.id);
-            if (!item) {
-              return;
-            }
-            clearTimeout(item.timer);
-            pending.delete(packet.id);
-            if (packet.ok) {
-              item.resolve(packet.result ?? {});
-              return;
-            }
-            item.reject(new Error(packet.error ?? "unknown rpc error"));
-            return;
-          }
-          if (packet.type === "event" && packet.event === "new_message") {
-            if (packet.payload && typeof packet.payload === "object") {
-              await handleInbound(packet.payload as TeleDaemonMessage);
-            }
-            return;
-          }
-        }
-
-        // Backward compatibility with pre-RPC daemon payloads.
-        if (Array.isArray(parsed)) {
-          for (const entry of parsed) {
-            if (entry && typeof entry === "object") {
-              await handleInbound(entry as TeleDaemonMessage);
-            }
-          }
+        clearTimeout(item.timer);
+        pending.delete(packet.id);
+        if (packet.ok) {
+          item.resolve(packet.result ?? {});
           return;
         }
-        if (parsed && typeof parsed === "object") {
-          await handleInbound(parsed as TeleDaemonMessage);
+        item.reject(new Error(packet.error ?? "unknown rpc error"));
+        return;
+      }
+      if (packet.type === "event" && packet.event === "new_message") {
+        if (packet.payload && typeof packet.payload === "object") {
+          enqueueInbound(() => handleInbound(packet.payload as TeleDaemonMessage));
         }
-      })
-      .catch((err) => {
-        logger.error(`tele-cli inbound handler error: ${String(err)}`);
-      });
+        return;
+      }
+    }
+
+    enqueueInbound(async () => {
+      // Backward compatibility with pre-RPC daemon payloads.
+      if (Array.isArray(parsed)) {
+        for (const entry of parsed) {
+          if (entry && typeof entry === "object") {
+            await handleInbound(entry as TeleDaemonMessage);
+          }
+        }
+        return;
+      }
+      if (parsed && typeof parsed === "object") {
+        await handleInbound(parsed as TeleDaemonMessage);
+      }
+    });
   });
 
   await new Promise<void>((resolve, reject) => {

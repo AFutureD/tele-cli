@@ -14,12 +14,14 @@ export type ResolvedTeleCliAccount = {
   config: {
     dmPolicy?: "open" | "pairing" | "disabled";
     allowFrom?: Array<string | number>;
+    ignorePeerIds?: Array<string | number>;
     groupPolicy?: "open" | "allowlist" | "disabled";
     groupAllowFrom?: Array<string | number>;
     textChunkLimit?: number;
     chunkMode?: "length" | "newline";
     blockStreaming?: boolean;
     responsePrefix?: string;
+    sessionIsolate?: boolean;
   };
 };
 
@@ -70,12 +72,14 @@ export function resolveTeleCliAccount(params: {
     config: {
       dmPolicy: accountCfg.dmPolicy ?? teleCfg.dmPolicy,
       allowFrom: accountCfg.allowFrom ?? teleCfg.allowFrom,
+      ignorePeerIds: accountCfg.ignorePeerIds ?? teleCfg.ignorePeerIds,
       groupPolicy: accountCfg.groupPolicy ?? teleCfg.groupPolicy,
       groupAllowFrom: accountCfg.groupAllowFrom ?? teleCfg.groupAllowFrom,
       textChunkLimit: accountCfg.textChunkLimit ?? teleCfg.textChunkLimit,
       chunkMode: accountCfg.chunkMode ?? teleCfg.chunkMode,
       blockStreaming: accountCfg.blockStreaming ?? teleCfg.blockStreaming,
       responsePrefix: accountCfg.responsePrefix ?? teleCfg.responsePrefix,
+      sessionIsolate: accountCfg.sessionIsolate ?? teleCfg.sessionIsolate,
     },
   };
 }

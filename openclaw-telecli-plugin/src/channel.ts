@@ -98,6 +98,8 @@ export const teleCliPlugin: ChannelPlugin<ResolvedTeleCliAccount> = {
       daemonSession: account.daemonSession,
       sendSession: account.sendSession,
       configFile: account.configFile,
+      sessionIsolate: account.config.sessionIsolate,
+      ignorePeerIds: account.config.ignorePeerIds,
     }),
     resolveAllowFrom: ({ cfg, accountId }) =>
       (resolveTeleCliAccount({ cfg, accountId }).config.allowFrom ?? []).map((entry) =>
@@ -270,6 +272,8 @@ export const teleCliPlugin: ChannelPlugin<ResolvedTeleCliAccount> = {
       daemonSession: account.daemonSession,
       sendSession: account.sendSession,
       configFile: account.configFile,
+      sessionIsolate: account.config.sessionIsolate,
+      ignorePeerIds: account.config.ignorePeerIds,
       running: runtime?.running ?? false,
       connected: runtime?.connected ?? false,
       lastStartAt: runtime?.lastStartAt ?? null,

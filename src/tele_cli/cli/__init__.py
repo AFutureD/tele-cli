@@ -478,11 +478,22 @@ def daemon_start(
                     print(utils.fmt.format_message_list([msg], cli_args.fmt), fmt=cli_args.fmt)
                     return
                 try:
+                    # Keep daemon event payload compact to avoid stdout back-pressure stalls.
+                    payload: dict[str, object] = {
+                        "id": msg.id,
+                        "message": msg.message,
+                        "date": msg.date,
+                        "out": msg.out,
+                        "post": msg.post,
+                        "peer_id": msg.peer_id.to_dict() if getattr(msg, "peer_id", None) is not None else None,
+                        "from_id": msg.from_id.to_dict() if getattr(msg, "from_id", None) is not None else None,
+                        "sender_id": msg.sender_id,
+                    }
                     await _emit_json(
                         {
                             "type": "event",
                             "event": "new_message",
-                            "payload": msg.to_dict(),
+                            "payload": payload,
                         }
                     )
                 except Exception:
