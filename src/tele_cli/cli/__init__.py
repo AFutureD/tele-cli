@@ -13,6 +13,7 @@ import typer
 from telethon import events
 from telethon import hints
 from telethon.tl.custom import Dialog, Message
+from telethon.tl.types import UpdateUserStatus, UserStatusOnline
 
 from tele_cli import utils
 from tele_cli.app import TGClient, TeleCLI
@@ -421,6 +422,9 @@ def daemon_start(
 
             emit_lock = asyncio.Lock()
             stop_event = asyncio.Event()
+            me = await client.get_me()
+            self_user_id = int(me.id) if me is not None else None
+            self_online = isinstance(getattr(me, "status", None), UserStatusOnline)
 
             def _json_default(value: object) -> object:
                 if isinstance(value, datetime):
@@ -470,6 +474,29 @@ def daemon_start(
                             # Downstream consumer closed stdout; stop emitting.
                             return
 
+            async def _refresh_self_online() -> None:
+                nonlocal self_online
+                try:
+                    current = await client.get_me()
+                    if current is None:
+                        return
+                    self_online = isinstance(getattr(current, "status", None), UserStatusOnline)
+                except Exception:
+                    return
+
+            async def on_raw_update(update: object) -> None:
+                nonlocal self_online
+                if self_user_id is None:
+                    return
+                if not isinstance(update, UpdateUserStatus):
+                    return
+                try:
+                    if int(update.user_id) != self_user_id:
+                        return
+                except Exception:
+                    return
+                self_online = isinstance(update.status, UserStatusOnline)
+
             async def on_new_message(event: events.NewMessage.Event) -> None:
                 msg = event.message
                 if not isinstance(msg, Message):
@@ -488,6 +515,7 @@ def daemon_start(
                         "peer_id": msg.peer_id.to_dict() if getattr(msg, "peer_id", None) is not None else None,
                         "from_id": msg.from_id.to_dict() if getattr(msg, "from_id", None) is not None else None,
                         "sender_id": msg.sender_id,
+                        "self_online": self_online,
                     }
                     await _emit_json(
                         {
@@ -500,7 +528,16 @@ def daemon_start(
                     # Never crash the Telethon update loop because of stdout back-pressure.
                     return
 
+            async def _presence_loop() -> None:
+                while not stop_event.is_set():
+                    await _refresh_self_online()
+                    try:
+                        await asyncio.wait_for(stop_event.wait(), timeout=15)
+                    except TimeoutError:
+                        continue
+
             client.add_event_handler(on_new_message, events.NewMessage())
+            client.add_event_handler(on_raw_update, events.Raw())
 
             async def _rpc_loop() -> None:
                 loop = asyncio.get_running_loop()
@@ -581,8 +618,9 @@ def daemon_start(
                         )
 
             rpc_task: asyncio.Task[None] | None = None
+            presence_task = asyncio.create_task(_presence_loop())
             if rpc_stdio:
-                await _emit_json({"type": "ready", "mode": "rpc_stdio"})
+                await _emit_json({"type": "ready", "mode": "rpc_stdio", "self_online": self_online})
                 rpc_task = asyncio.create_task(_rpc_loop())
             else:
                 print("daemon started, waiting for new messages...", fmt=cli_args.fmt)
@@ -590,6 +628,7 @@ def daemon_start(
             wait_tasks: set[asyncio.Task[Any]] = {
                 asyncio.ensure_future(client.disconnected),
                 asyncio.create_task(stop_event.wait()),
+                presence_task,
             }
             if rpc_task:
                 wait_tasks.add(rpc_task)

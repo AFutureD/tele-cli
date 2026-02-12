@@ -33,6 +33,7 @@ type TeleDaemonMessage = {
   peer_id?: unknown;
   from_id?: unknown;
   sender_id?: unknown;
+  self_online?: boolean;
 };
 
 type TeleDaemonPacket =
@@ -218,6 +219,9 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
 
   const handleInbound = async (msg: TeleDaemonMessage) => {
     if (!msg || msg.out) {
+      return;
+    }
+    if (msg.self_online === true) {
       return;
     }
     const rawBody = (msg.message ?? "").trim();
