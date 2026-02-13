@@ -135,3 +135,31 @@ def format_session_info_list(session_info_list: list[SessionInfo], fmt: None | O
             return json.dumps(obj_list, ensure_ascii=False)
         case OutputFormat.toon:
             raise NotImplementedError("Not Supported Format For SessionInfo List")
+
+
+def _format_authorization_to_str(x: telethon.types.Authorization, max_hash_len: int, max_device_model_len: int) -> str:
+    is_current = x.current or False
+    current = ">" if is_current else " "
+
+    date_active = arrow.get(x.date_active).humanize()
+
+    return f"{current} [{x.hash: <{max_hash_len}}] {date_active:14} {x.device_model: <{max_device_model_len}} - {x.app_name} {x.app_version} "
+
+
+def format_authorizations(
+    authorizations: telethon.types.account.Authorizations,
+    fmt: None | OutputFormat = None,
+) -> str:
+    output_fmt = fmt or OutputFormat.text
+
+    match output_fmt:
+        case OutputFormat.text:
+            max_hash_len = max(list(map(lambda x: get_str_len_for_int(x.hash), authorizations.authorizations)))
+            max_device_model_len = max(list(map(lambda x: len(x.device_model), authorizations.authorizations)))
+
+            rows = [_format_authorization_to_str(item, max_hash_len, max_device_model_len) for item in authorizations.authorizations]
+            return "\n".join(rows)
+        case OutputFormat.json:
+            return json.dumps(authorizations.to_dict(), default=json_default_callback, ensure_ascii=False)
+        case OutputFormat.toon:
+            raise NotImplementedError("Not Supported Format For Authorizations")

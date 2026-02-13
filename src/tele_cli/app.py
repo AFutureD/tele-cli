@@ -4,6 +4,7 @@ import inspect
 import sqlite3
 from pathlib import Path
 from typing import Callable
+import zlib
 
 from tele_cli.utils.fmt import format_me
 import telethon
@@ -11,6 +12,7 @@ from telethon import TelegramClient
 from telethon import hints
 from telethon.custom import Dialog
 from telethon.errors import RPCError
+from telethon.tl.functions.account import GetAuthorizationsRequest
 
 from . import types
 from .session import TGSession, load_session, session_ensure_current_valid
@@ -66,6 +68,13 @@ class TeleCLI:
             await client.is_user_authorized()
             me = await client.get_me()
             return me if isinstance(me, telethon.types.User) else None
+
+    async def get_authorizations(self) -> telethon.types.account.Authorizations:
+        async with self.client() as client:
+            await client.is_user_authorized()
+            result = await client(GetAuthorizationsRequest())
+
+            return result
 
     async def logout(self) -> telethon.types.User | None:
         async with self.client() as client:

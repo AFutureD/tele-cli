@@ -133,6 +133,26 @@ def auth_list(ctx: typer.Context):
 
 
 @auth_cli.command(
+    name="authorizations",
+    help="""
+    List active Telegram authorizations (sessions/devices) for the current account.
+    """,
+)
+def auth_authorizations(ctx: typer.Context):
+    cli_args: SharedArgs = ctx.obj
+
+    async def _run() -> bool:
+        app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
+        authorizations = await app.get_authorizations()
+        print(utils.fmt.format_authorizations(authorizations, cli_args.fmt), fmt=cli_args.fmt)
+        return True
+
+    ok = asyncio.run(_run())
+    if not ok:
+        raise typer.Exit(code=1)
+
+
+@auth_cli.command(
     name="switch",
     help="""
     Switch the active Telegram account.
