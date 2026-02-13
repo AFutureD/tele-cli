@@ -24,6 +24,14 @@ type PeerLike = {
   channel_id?: number;
 };
 
+type NormalizedPeer = {
+  id: string;
+  type: "user" | "chat" | "channel" | "unknown";
+  userId?: string;
+  chatId?: string;
+  channelId?: string;
+};
+
 type TeleDaemonMessage = {
   id?: string | number;
   out?: boolean;
@@ -33,6 +41,10 @@ type TeleDaemonMessage = {
   peer_id?: unknown;
   from_id?: unknown;
   sender_id?: unknown;
+  sender_name?: unknown;
+  sender_username?: unknown;
+  chat_title?: unknown;
+  chat_username?: unknown;
   self_online?: boolean;
 };
 
@@ -115,6 +127,111 @@ function toPeerIdString(peer: unknown): string | null {
 function isDirectPeer(peer: unknown): boolean {
   const p = asPeerLike(peer);
   return Boolean(p?.user_id);
+}
+
+function normalizePeer(peer: unknown): NormalizedPeer | null {
+  const id = toPeerIdString(peer);
+  if (!id) {
+    return null;
+  }
+  const p = asPeerLike(peer);
+  if (!p) {
+    return { id, type: "unknown" };
+  }
+  if (typeof p.user_id === "number") {
+    return { id, type: "user", userId: String(p.user_id) };
+  }
+  if (typeof p.chat_id === "number") {
+    return { id, type: "chat", chatId: String(p.chat_id) };
+  }
+  if (typeof p.channel_id === "number") {
+    return { id, type: "channel", channelId: String(p.channel_id) };
+  }
+  return { id, type: "unknown" };
+}
+
+function buildPeerContext(params: {
+  peer: unknown;
+  from: unknown;
+  sender: unknown;
+  direct: boolean;
+  senderName?: unknown;
+  senderUsername?: unknown;
+  chatTitle?: unknown;
+  chatUsername?: unknown;
+}) {
+  const peer = normalizePeer(params.peer);
+  const from = normalizePeer(params.from);
+  const rawSender = normalizePeer(params.sender);
+  const sender =
+    (!rawSender || rawSender.type === "unknown" ? from : rawSender) ??
+    (params.direct
+      ? {
+          id: peer?.id ?? "unknown",
+          type: "user" as const,
+          userId: peer?.id,
+        }
+      : null);
+
+  const senderUsername =
+    typeof params.senderUsername === "string"
+      ? params.senderUsername.replace(/^@/, "").trim() || undefined
+      : undefined;
+  const senderName =
+    typeof params.senderName === "string" ? params.senderName.trim() || undefined : undefined;
+  const chatTitle = typeof params.chatTitle === "string" ? params.chatTitle.trim() || undefined : undefined;
+  const chatUsername =
+    typeof params.chatUsername === "string"
+      ? params.chatUsername.replace(/^@/, "").trim() || undefined
+      : undefined;
+
+  const senderType = sender?.type ?? "unknown";
+  const fallbackSenderLabel =
+    senderType === "user"
+      ? `Telegram user ${sender?.id ?? "unknown"}`
+      : senderType === "channel"
+        ? `Telegram channel ${sender?.id ?? "unknown"}`
+        : `Telegram peer ${sender?.id ?? "unknown"}`;
+  const senderLabel = senderName ?? fallbackSenderLabel;
+  const conversationLabel = params.direct
+    ? senderLabel
+    : chatTitle
+      ? `${chatTitle} id:${peer?.id ?? "unknown"}`
+      : chatUsername
+        ? `@${chatUsername} id:${peer?.id ?? "unknown"}`
+    : peer?.type === "channel"
+      ? `Telegram channel ${peer.id}`
+      : `Telegram chat ${peer?.id ?? "unknown"}`;
+
+  const context: Record<string, string | undefined> = {
+    PeerId: peer?.id,
+    PeerType: peer?.type,
+    PeerUserId: peer?.userId,
+    PeerChatId: peer?.chatId,
+    PeerChannelId: peer?.channelId,
+    FromPeerId: from?.id,
+    FromPeerType: from?.type,
+    FromPeerUserId: from?.userId,
+    FromPeerChatId: from?.chatId,
+    FromPeerChannelId: from?.channelId,
+    SenderPeerId: sender?.id,
+    SenderPeerType: sender?.type,
+    SenderPeerUserId: sender?.userId,
+    SenderPeerChatId: sender?.chatId,
+    SenderPeerChannelId: sender?.channelId,
+    SenderName: senderLabel,
+    SenderUsername: senderUsername,
+    GroupSubject: params.direct ? undefined : chatTitle,
+    ConversationLabel: conversationLabel,
+  };
+
+  return {
+    context,
+    senderLabel,
+    senderUsername,
+    groupSubject: params.direct ? undefined : chatTitle,
+    conversationLabel,
+  };
 }
 
 function parseTimestamp(value: unknown): number | undefined {
@@ -242,7 +359,7 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
     if (!msg || msg.out) {
       return;
     }
-    if (msg.self_online === true) {
+    if (account.config.dropWhenSelfOnline !== false && msg.self_online === true) {
       return;
     }
     const rawBody = (msg.message ?? "").trim();
@@ -397,16 +514,29 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
       }
     }
 
+    const peerMeta = buildPeerContext({
+      peer: msg.peer_id,
+      from: msg.from_id,
+      sender: msg.sender_id,
+      direct,
+      senderName: msg.sender_name,
+      senderUsername: msg.sender_username,
+      chatTitle: msg.chat_title,
+      chatUsername: msg.chat_username,
+    });
     const timestamp = parseTimestamp(msg.date) ?? Date.now();
-    const fromLabel = direct ? `Telegram user ${senderId}` : `Telegram chat ${peerId}`;
     const chatType = direct ? "direct" : "group";
     const body = core.channel.reply.formatInboundEnvelope({
       channel: "Telegram",
-      from: fromLabel,
+      from: peerMeta.conversationLabel,
       timestamp,
       body: rawBody,
       chatType,
-      sender: { id: senderId },
+      sender: {
+        id: senderId,
+        name: peerMeta.senderLabel,
+        username: peerMeta.senderUsername,
+      },
     });
 
     const messageSid = msg.id != null ? String(msg.id) : `${Date.now()}`;
@@ -421,8 +551,11 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
       SessionKey: sessionKey,
       AccountId: route.accountId,
       ChatType: chatType,
-      ConversationLabel: fromLabel,
+      ConversationLabel: peerMeta.conversationLabel,
+      GroupSubject: peerMeta.groupSubject,
       SenderId: senderId,
+      SenderName: peerMeta.senderLabel,
+      SenderUsername: peerMeta.senderUsername,
       Provider: CHANNEL_ID,
       Surface: CHANNEL_ID,
       MessageSid: messageSid,
@@ -431,6 +564,7 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
       CommandAuthorized: commandAuthorized,
       OriginatingChannel: CHANNEL_ID,
       OriginatingTo: to,
+      ...peerMeta.context,
     });
 
     const storePath = core.channel.session.resolveStorePath(cfg.session?.store, {

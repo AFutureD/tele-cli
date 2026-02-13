@@ -100,6 +100,7 @@ export const teleCliPlugin: ChannelPlugin<ResolvedTeleCliAccount> = {
       configFile: account.configFile,
       sessionIsolate: account.config.sessionIsolate,
       ignorePeerIds: account.config.ignorePeerIds,
+      dropWhenSelfOnline: account.config.dropWhenSelfOnline,
     }),
     resolveAllowFrom: ({ cfg, accountId }) =>
       (resolveTeleCliAccount({ cfg, accountId }).config.allowFrom ?? []).map((entry) =>
@@ -282,6 +283,7 @@ export const teleCliPlugin: ChannelPlugin<ResolvedTeleCliAccount> = {
       configFile: account.configFile,
       sessionIsolate: account.config.sessionIsolate,
       ignorePeerIds: account.config.ignorePeerIds,
+      dropWhenSelfOnline: account.config.dropWhenSelfOnline,
       running: runtime?.running ?? false,
       connected: runtime?.connected ?? false,
       lastStartAt: runtime?.lastStartAt ?? null,

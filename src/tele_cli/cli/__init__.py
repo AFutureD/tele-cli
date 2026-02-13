@@ -492,6 +492,20 @@ def daemon_start(
                             # Downstream consumer closed stdout; stop emitting.
                             return
 
+            def _normalize_username(value: object) -> str | None:
+                if not isinstance(value, str):
+                    return None
+                raw = value.strip()
+                if not raw:
+                    return None
+                return raw[1:] if raw.startswith("@") else raw
+
+            def _build_name(*parts: object) -> str | None:
+                tokens = [str(part).strip() for part in parts if isinstance(part, str) and str(part).strip()]
+                if not tokens:
+                    return None
+                return " ".join(tokens)
+
             async def _refresh_self_online() -> None:
                 nonlocal self_online
                 try:
@@ -523,6 +537,32 @@ def daemon_start(
                     print(utils.fmt.format_message_list([msg], cli_args.fmt), fmt=cli_args.fmt)
                     return
                 try:
+                    sender_name: str | None = None
+                    sender_username: str | None = None
+                    chat_title: str | None = None
+                    chat_username: str | None = None
+                    try:
+                        sender = await event.get_sender()
+                        sender_name = _build_name(
+                            getattr(sender, "first_name", None),
+                            getattr(sender, "last_name", None),
+                        ) or (
+                            getattr(sender, "title", None).strip()
+                            if isinstance(getattr(sender, "title", None), str)
+                            and getattr(sender, "title", None).strip()
+                            else None
+                        )
+                        sender_username = _normalize_username(getattr(sender, "username", None))
+                    except Exception:
+                        pass
+                    try:
+                        chat = await event.get_chat()
+                        if isinstance(getattr(chat, "title", None), str) and getattr(chat, "title", None).strip():
+                            chat_title = getattr(chat, "title", None).strip()
+                        chat_username = _normalize_username(getattr(chat, "username", None))
+                    except Exception:
+                        pass
+
                     # Keep daemon event payload compact to avoid stdout back-pressure stalls.
                     payload: dict[str, object] = {
                         "id": msg.id,
@@ -533,6 +573,10 @@ def daemon_start(
                         "peer_id": msg.peer_id.to_dict() if getattr(msg, "peer_id", None) is not None else None,
                         "from_id": msg.from_id.to_dict() if getattr(msg, "from_id", None) is not None else None,
                         "sender_id": msg.sender_id,
+                        "sender_name": sender_name,
+                        "sender_username": sender_username,
+                        "chat_title": chat_title,
+                        "chat_username": chat_username,
                         "self_online": self_online,
                     }
                     await _emit_json(

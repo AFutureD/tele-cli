@@ -23,6 +23,7 @@ export type TeleCliAccountConfig = {
   responsePrefix?: string;
   sessionIsolate?: boolean;
   ignorePeerIds?: Array<string | number>;
+  dropWhenSelfOnline?: boolean;
 };
 
 export type TeleCliConfig = TeleCliAccountConfig & {
@@ -59,6 +60,7 @@ const accountSchema = {
     responsePrefix: { type: "string" },
     sessionIsolate: { type: "boolean" },
     ignorePeerIds: stringOrNumberArraySchema,
+    dropWhenSelfOnline: { type: "boolean" },
   },
 } as const;
 

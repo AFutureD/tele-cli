@@ -22,6 +22,7 @@ export type ResolvedTeleCliAccount = {
     blockStreaming?: boolean;
     responsePrefix?: string;
     sessionIsolate?: boolean;
+    dropWhenSelfOnline?: boolean;
   };
 };
 
@@ -80,6 +81,7 @@ export function resolveTeleCliAccount(params: {
       blockStreaming: accountCfg.blockStreaming ?? teleCfg.blockStreaming,
       responsePrefix: accountCfg.responsePrefix ?? teleCfg.responsePrefix,
       sessionIsolate: accountCfg.sessionIsolate ?? teleCfg.sessionIsolate,
+      dropWhenSelfOnline: accountCfg.dropWhenSelfOnline ?? teleCfg.dropWhenSelfOnline,
     },
   };
 }
