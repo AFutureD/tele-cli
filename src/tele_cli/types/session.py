@@ -8,5 +8,5 @@ class SessionInfo(BaseModel):
     session_name: str = Field(...)
     user_id: int = Field(...)
     user_name: str | None = Field(...)
-    user_phone: int | None = Field(...)
+    user_phone: str | None = Field(...)
     user_display_name: str | None = Field(...)

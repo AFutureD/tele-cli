@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import inspect
+import sqlite3
+from pathlib import Path
 from typing import Callable
 
+from tele_cli.utils.fmt import format_me
 import telethon
 from telethon import TelegramClient
 from telethon import hints
@@ -34,6 +37,9 @@ class TGClient(TelegramClient):
         override super `__aenter__` to avoid login process.
         """
         return await self._start_without_login()
+
+    def get_session(self) -> TGSession | None:
+        return self.session
 
 
 class TeleCLI:
@@ -164,3 +170,29 @@ class TeleCLI:
         async with self.client() as client:
             archived = None if with_archived else False
             return [item async for item in client.iter_dialogs(archived=archived)]  # type: ignore[arg-type]
+
+    async def get_session_info(self) -> types.SessionInfo | None:
+        try:
+            me = await self.get_me()
+        except sqlite3.OperationalError as exc:
+            if "locked" in str(exc).casefold():
+                return None
+            raise
+
+        if not me:
+            return None
+        session = self.client().get_session()
+
+        if not isinstance(session, TGSession):
+            return None
+
+        session_path = Path(session.filename)
+
+        return types.SessionInfo(
+            path=session_path,
+            session_name=session_path.stem,
+            user_id=me.id,
+            user_name=me.username,
+            user_phone=me.phone,
+            user_display_name=format_me(me),
+        )

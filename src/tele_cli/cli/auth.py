@@ -7,7 +7,7 @@ import typer
 from tele_cli import utils
 from tele_cli.app import TeleCLI
 from tele_cli.config import load_config
-from tele_cli.session import list_session_list, session_switch, TGSession
+from tele_cli.session import list_session_name, session_switch, TGSession
 from tele_cli.utils.fmt import format_session_info_list
 from tele_cli.utils import print
 
@@ -109,10 +109,20 @@ def auth_list(ctx: typer.Context):
     cli_args: SharedArgs = ctx.obj
 
     async def _run() -> bool:
-        session_list = await list_session_list()
+        session_name_list = await list_session_name()
+        config = load_config(config_file=cli_args.config_file)
 
-        session_info_list = await asyncio.gather(*(session.get_info() for session in session_list))
-        session_info_list = [session_info for session_info in session_info_list if session_info is not None]
+        session_info_list = []
+        for session_name in session_name_list:
+            print("1", session_name)
+            app = await TeleCLI.create(session_name=session_name, config=config)
+            print("2", session_name)
+            session_info = await app.get_session_info()
+            print("3", session_name)
+            if session_info is None:
+                continue
+            print("4", session_name)
+            session_info_list.append(session_info)
 
         print(format_session_info_list(session_info_list, fmt=cli_args.fmt), fmt=cli_args.fmt)
         return True
@@ -147,6 +157,8 @@ def auth_switch(
         typer.Option("--session", help="Session name to use (as shown in `tele auth list`)."),
     ] = None,
 ):
+    cli_args: SharedArgs = ctx.obj
+
     if username and username.startswith("@"):
         username = username.removeprefix("@")
 
@@ -154,10 +166,12 @@ def auth_switch(
         if not user_id and not username and not session_name:
             raise typer.BadParameter("Provide at least one of: user_id, username, or session.")
 
-        session_list = await list_session_list()
+        session__name_list = await list_session_name()
 
-        async def predicator(session: TGSession) -> bool:
-            session_info = await session.get_info()
+        app_list = [await TeleCLI.create(session_name=session, config=load_config(config_file=cli_args.config_file)) for session in session__name_list]
+
+        async def predicator(app: TeleCLI) -> bool:
+            session_info = await app.get_session_info()
             if session_info is None:
                 return False
 
@@ -167,15 +181,17 @@ def auth_switch(
 
             return cond_1 or cond_2 or cond_3
 
-        session_list = [s for s in session_list if await predicator(s)]
+        app_list = [s for s in app_list if await predicator(s)]
 
-        if len(session_list) == 0:
+        if len(app_list) == 0:
             raise typer.BadParameter("No Session Matched")
 
-        if len(session_list) > 1:
+        if len(app_list) > 1:
             raise typer.BadParameter("Multiple Sessions Matched")
 
-        session = session_list[0]
+        session = app_list[0].client().get_session()
+        if not session:
+            return False
         session_switch(session=session)
 
         return True

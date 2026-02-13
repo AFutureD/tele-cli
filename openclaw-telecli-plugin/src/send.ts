@@ -8,6 +8,8 @@ export type TeleCliSendOpts = {
   session?: string;
   configFile?: string;
   timeoutMs?: number;
+  replyTo?: number;
+  file?: string[];
 };
 
 export type TeleCliSendResult = {
@@ -61,6 +63,8 @@ export async function sendMessageTeleCli(
       receiver: target,
       message: text ?? "",
       ...(isNumericPeerId(target) ? { entityType: "peer_id" as const } : {}),
+      ...(typeof opts.replyTo === "number" ? { replyTo: opts.replyTo } : {}),
+      ...(opts.file?.length ? { file: opts.file } : {}),
     });
     runtime.channel.activity.record({
       channel: "telecli",
@@ -81,6 +85,16 @@ export async function sendMessageTeleCli(
   ];
   if (isNumericPeerId(target)) {
     argv.push("--entity", "peer_id");
+  }
+  if (typeof opts.replyTo === "number") {
+    argv.push("--reply-to", String(opts.replyTo));
+  }
+  for (const item of opts.file ?? []) {
+    const trimmed = String(item).trim();
+    if (!trimmed) {
+      continue;
+    }
+    argv.push("--file", trimmed);
   }
   argv.push(target, text ?? "");
 

@@ -320,6 +320,14 @@ def message_send(
         EntityType | None,
         typer.Option("--entity", "-t", help="How to interpret RECEIVER (e.g. `peer_id`)."),
     ] = None,
+    reply_to: Annotated[
+        int | None,
+        typer.Option("--reply-to", help="Reply to a specific message id."),
+    ] = None,
+    file: Annotated[
+        list[Path] | None,
+        typer.Option("--file", help="Attach local file(s). Can be used multiple times."),
+    ] = None,
 ):
     """
     Send a message to RECEIVER.
@@ -348,7 +356,13 @@ def message_send(
 
     async def _run() -> bool:
         app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
-        await app.send_message(entity, content)
+        file_args = [str(item) for item in (file or [])]
+        await app.send_message(
+            entity,
+            content,
+            reply_to=reply_to,
+            file=file_args or None,
+        )
 
         return True
 
@@ -401,6 +415,8 @@ def daemon_start(
         receiver: str | int,
         message: str,
         entity_type_str: str | None = None,
+        reply_to: int | None = None,
+        file_paths: list[str] | None = None,
     ) -> bool:
         entity: str | int = receiver
         if entity_type_str == EntityType.peer_id.value:
@@ -410,6 +426,8 @@ def daemon_start(
         await client.send_message(
             resolved,
             message,
+            reply_to=reply_to,
+            file=file_paths or None,
         )
         return True
 
@@ -578,15 +596,33 @@ def daemon_start(
                                 raise ValueError("receiver is required")
                             message_raw = params.get("message", "")
                             entity_type_raw = params.get("entity_type")
+                            reply_to_raw = params.get("reply_to")
+                            file_raw = params.get("file")
                             receiver = str(receiver_raw)
                             message = str(message_raw)
                             entity_type_str = str(entity_type_raw) if entity_type_raw is not None else None
+                            reply_to: int | None = None
+                            if isinstance(reply_to_raw, int):
+                                reply_to = reply_to_raw
+                            elif isinstance(reply_to_raw, str):
+                                trimmed_reply = reply_to_raw.strip()
+                                if trimmed_reply:
+                                    reply_to = int(trimmed_reply)
+                            file_paths: list[str] | None = None
+                            if isinstance(file_raw, str):
+                                trimmed = file_raw.strip()
+                                file_paths = [trimmed] if trimmed else None
+                            elif isinstance(file_raw, list):
+                                parsed_paths = [str(item).strip() for item in file_raw if str(item).strip()]
+                                file_paths = parsed_paths or None
 
                             await _send_message_with_connected_client(
                                 client=client,
                                 receiver=receiver,
                                 message=message,
                                 entity_type_str=entity_type_str,
+                                reply_to=reply_to,
+                                file_paths=file_paths,
                             )
                             await _emit_json(
                                 {

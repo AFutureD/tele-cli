@@ -2,6 +2,8 @@ export type TeleDaemonRpcSendMessageParams = {
   receiver: string;
   message: string;
   entityType?: "peer_id";
+  replyTo?: number;
+  file?: string[];
 };
 
 export type TeleDaemonRpcClient = {

@@ -179,6 +179,7 @@ async function deliverTeleCliReply(params: {
   payload: { text?: string; mediaUrls?: string[]; mediaUrl?: string };
   target: string;
   account: ResolvedTeleCliAccount;
+  replyTo?: number;
   statusSink?: TeleDaemonMonitorOptions["statusSink"];
 }): Promise<void> {
   const text = params.payload.text?.trim() ?? "";
@@ -187,7 +188,25 @@ async function deliverTeleCliReply(params: {
     : params.payload.mediaUrl
       ? [params.payload.mediaUrl]
       : [];
-  const mediaBlock = mediaList.length ? mediaList.map((url) => `Attachment: ${url}`).join("\n") : "";
+  const fileList: string[] = [];
+  const linkList: string[] = [];
+  for (const media of mediaList) {
+    const item = String(media).trim();
+    if (!item) {
+      continue;
+    }
+    if (
+      item.startsWith("/") ||
+      item.startsWith("./") ||
+      item.startsWith("../") ||
+      item.startsWith("file://")
+    ) {
+      fileList.push(item.startsWith("file://") ? item.slice("file://".length) : item);
+      continue;
+    }
+    linkList.push(item);
+  }
+  const mediaBlock = linkList.length ? linkList.map((url) => `Attachment: ${url}`).join("\n") : "";
   const combined = text && mediaBlock ? `${text}\n\n${mediaBlock}` : text || mediaBlock;
   if (!combined.trim()) {
     return;
@@ -197,6 +216,8 @@ async function deliverTeleCliReply(params: {
     telePath: params.account.telePath,
     session: params.account.sendSession ?? params.account.session,
     configFile: params.account.configFile,
+    replyTo: params.replyTo,
+    file: fileList.length ? fileList : undefined,
   });
   params.statusSink?.({ lastOutboundAt: Date.now() });
 }
@@ -452,10 +473,13 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
       dispatcherOptions: {
         ...prefixOptions,
         deliver: async (payload) => {
+          const replyTo =
+            msg.id != null && Number.isFinite(Number(msg.id)) ? Number(msg.id) : undefined;
           await deliverTeleCliReply({
             payload: payload as { text?: string; mediaUrls?: string[]; mediaUrl?: string },
             target: peerId,
             account,
+            replyTo,
             statusSink: opts.statusSink,
           });
         },
@@ -541,11 +565,13 @@ export async function monitorTeleDaemon(opts: TeleDaemonMonitorOptions): Promise
     });
 
   const rpcClient: TeleDaemonRpcClient = {
-    sendMessage: async ({ receiver, message, entityType }) => {
+    sendMessage: async ({ receiver, message, entityType, replyTo, file }) => {
       const result = await sendRpc("send_message", {
         receiver,
         message,
         ...(entityType ? { entity_type: entityType } : {}),
+        ...(typeof replyTo === "number" ? { reply_to: replyTo } : {}),
+        ...(file?.length ? { file } : {}),
       });
       const parsed = (result ?? {}) as { sent?: boolean; receiver?: string };
       return {

@@ -6,35 +6,10 @@ from telethon.sessions import SQLiteSession
 from tele_cli.shared import get_app_user_defualt_dir
 
 from .types import CurrentSessionPathNotValidError
-from .types.session import SessionInfo
 
 
 class TGSession(SQLiteSession):
-    def get_possible_user_entity(self) -> tuple[int, str, int, str]:
-        """
-        Treat the earliest entity as a user.
-        IDs greater than 0 indicate a user.
-
-        :return: tuple of possible user entity
-        """
-
-        return self._execute("select id, username, phone, name from entities where id > 0 ORDER BY date ASC limit 1")
-
-    async def get_info(self) -> SessionInfo | None:
-        user_entity = self.get_possible_user_entity()
-        if not user_entity:
-            return None
-
-        session_path = Path(self.filename)
-        id, username, phone, name = user_entity
-        return SessionInfo(
-            path=session_path,
-            session_name=session_path.stem,
-            user_id=id,
-            user_name=username,
-            user_phone=phone,
-            user_display_name=name,
-        )
+    pass
 
 
 def get_app_session_folder() -> Path:
@@ -96,11 +71,11 @@ def session_ensure_current_valid(session: object = None) -> None:
     path.symlink_to(session_path)
 
 
-async def list_session_list() -> list[TGSession]:
+async def list_session_name() -> list[str]:
     folder = get_app_session_folder()
-    session_path_list = [item for item in folder.glob("*.session") if not item.is_symlink() and item.is_file()]
-    session_list = [TGSession(str(session_path)) for session_path in session_path_list]
-    return session_list
+    session_name_list = [item.stem for item in folder.glob("*.session") if not item.is_symlink() and item.is_file()]
+    # session_list = [TGSession(str(session_path)) for session_path in session_path_list]
+    return session_name_list
 
 
 def session_switch(session: TGSession) -> None:

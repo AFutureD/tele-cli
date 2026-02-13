@@ -220,9 +220,17 @@ export const teleCliPlugin: ChannelPlugin<ResolvedTeleCliAccount> = {
       };
     },
     sendMedia: async ({ to, text, mediaUrl, accountId }) => {
-      const merged = [text?.trim() ?? "", mediaUrl?.trim() ?? ""].filter(Boolean).join("\n\n");
+      const media = mediaUrl?.trim() ?? "";
+      const isLocalFile =
+        media.startsWith("/") ||
+        media.startsWith("./") ||
+        media.startsWith("../") ||
+        media.startsWith("file://");
+      const filePath = isLocalFile ? (media.startsWith("file://") ? media.slice("file://".length) : media) : "";
+      const merged = [text?.trim() ?? "", !isLocalFile ? media : ""].filter(Boolean).join("\n\n");
       const result = await sendMessageTeleCli(to, merged, {
         accountId: accountId ?? undefined,
+        ...(filePath ? { file: [filePath] } : {}),
       });
       return {
         channel: "telecli" as const,
