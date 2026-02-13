@@ -6,14 +6,15 @@ import json
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Annotated, Tuple
+from typing import Any, Annotated, Tuple, cast
 
 from tele_cli.types.tl import DialogType, EntityType
 import typer
 from telethon import events
 from telethon import hints
+from telethon.tl.functions.account import UpdateStatusRequest
 from telethon.tl.custom import Dialog, Message
-from telethon.tl.types import UpdateUserStatus, UserStatusOnline
+from telethon.tl.types import User, UserStatusOnline
 
 from tele_cli import utils
 from tele_cli.app import TGClient, TeleCLI
@@ -356,7 +357,7 @@ def message_send(
 
     async def _run() -> bool:
         app = await TeleCLI.create(session_name=cli_args.session, config=load_config(config_file=cli_args.config_file))
-        file_args = [str(item) for item in (file or [])]
+        file_args: list[hints.FileLike] = [str(item) for item in (file or [])]
         await app.send_message(
             entity,
             content,
@@ -423,12 +424,20 @@ def daemon_start(
             entity = int(receiver)
 
         resolved = await _resolve_entity_with_client(client=client, target=entity)
-        await client.send_message(
-            resolved,
-            message,
-            reply_to=reply_to,
-            file=file_paths or None,
-        )
+        if reply_to is None and not file_paths:
+            await client.send_message(resolved, message)
+        elif reply_to is None:
+            await client.send_message(resolved, message, file=cast(hints.FileLike | list[hints.FileLike], file_paths))
+        elif not file_paths:
+            await client.send_message(resolved, message, reply_to=reply_to)
+        else:
+            await client.send_message(
+                resolved,
+                message,
+                reply_to=reply_to,
+                file=cast(hints.FileLike | list[hints.FileLike], file_paths),
+            )
+        await client(UpdateStatusRequest(offline=True))
         return True
 
     async def _run() -> bool:
@@ -441,7 +450,7 @@ def daemon_start(
             emit_lock = asyncio.Lock()
             stop_event = asyncio.Event()
             me = await client.get_me()
-            self_user_id = int(me.id) if me is not None else None
+            self_user_id = int(me.id) if isinstance(me, User) else None
             self_online = isinstance(getattr(me, "status", None), UserStatusOnline)
 
             def _json_default(value: object) -> object:
@@ -516,18 +525,13 @@ def daemon_start(
                 except Exception:
                     return
 
-            async def on_raw_update(update: object) -> None:
+            async def on_user_status_change(event: events.UserUpdate.Event) -> None:
                 nonlocal self_online
                 if self_user_id is None:
                     return
-                if not isinstance(update, UpdateUserStatus):
+                if int(getattr(event, "user_id", 0)) != self_user_id:
                     return
-                try:
-                    if int(update.user_id) != self_user_id:
-                        return
-                except Exception:
-                    return
-                self_online = isinstance(update.status, UserStatusOnline)
+                self_online = bool(getattr(event, "online", False))
 
             async def on_new_message(event: events.NewMessage.Event) -> None:
                 msg = event.message
@@ -543,25 +547,34 @@ def daemon_start(
                     chat_username: str | None = None
                     try:
                         sender = await event.get_sender()
-                        sender_name = _build_name(
-                            getattr(sender, "first_name", None),
-                            getattr(sender, "last_name", None),
-                        ) or (
-                            getattr(sender, "title", None).strip()
-                            if isinstance(getattr(sender, "title", None), str)
-                            and getattr(sender, "title", None).strip()
-                            else None
+                        sender_title = getattr(sender, "title", None)
+                        sender_title_text = sender_title.strip() if isinstance(sender_title, str) and sender_title.strip() else None
+                        sender_name = (
+                            _build_name(
+                                getattr(sender, "first_name", None),
+                                getattr(sender, "last_name", None),
+                            )
+                            or sender_title_text
                         )
                         sender_username = _normalize_username(getattr(sender, "username", None))
                     except Exception:
                         pass
                     try:
                         chat = await event.get_chat()
-                        if isinstance(getattr(chat, "title", None), str) and getattr(chat, "title", None).strip():
-                            chat_title = getattr(chat, "title", None).strip()
+                        raw_chat_title = getattr(chat, "title", None)
+                        if isinstance(raw_chat_title, str) and raw_chat_title.strip():
+                            chat_title = raw_chat_title.strip()
                         chat_username = _normalize_username(getattr(chat, "username", None))
                     except Exception:
                         pass
+
+                    def _maybe_to_dict(value: object | None) -> object | None:
+                        if value is None:
+                            return None
+                        to_dict = getattr(value, "to_dict", None)
+                        if callable(to_dict):
+                            return to_dict()
+                        return None
 
                     # Keep daemon event payload compact to avoid stdout back-pressure stalls.
                     payload: dict[str, object] = {
@@ -570,8 +583,8 @@ def daemon_start(
                         "date": msg.date,
                         "out": msg.out,
                         "post": msg.post,
-                        "peer_id": msg.peer_id.to_dict() if getattr(msg, "peer_id", None) is not None else None,
-                        "from_id": msg.from_id.to_dict() if getattr(msg, "from_id", None) is not None else None,
+                        "peer_id": _maybe_to_dict(getattr(msg, "peer_id", None)),
+                        "from_id": _maybe_to_dict(getattr(msg, "from_id", None)),
                         "sender_id": msg.sender_id,
                         "sender_name": sender_name,
                         "sender_username": sender_username,
@@ -598,8 +611,9 @@ def daemon_start(
                     except TimeoutError:
                         continue
 
+            await _refresh_self_online()
             client.add_event_handler(on_new_message, events.NewMessage())
-            client.add_event_handler(on_raw_update, events.Raw())
+            client.add_event_handler(on_user_status_change, events.UserUpdate())
 
             async def _rpc_loop() -> None:
                 loop = asyncio.get_running_loop()
@@ -705,8 +719,8 @@ def daemon_start(
             else:
                 print("daemon started, waiting for new messages...", fmt=cli_args.fmt)
 
-            wait_tasks: set[asyncio.Task[Any]] = {
-                asyncio.ensure_future(client.disconnected),
+            wait_tasks: set[asyncio.Future[Any]] = {
+                client.disconnected,
                 asyncio.create_task(stop_event.wait()),
                 presence_task,
             }
@@ -718,11 +732,13 @@ def daemon_start(
                 task.cancel()
 
             if stop_event.is_set():
-                await client.disconnect()
+                client.disconnect()
             else:
                 for task in done:
-                    if task is rpc_task and rpc_task.exception():
-                        raise rpc_task.exception()  # type: ignore[misc]
+                    if rpc_task is not None and task is rpc_task:
+                        err = task.exception()
+                        if err:
+                            raise err
 
         return True
 

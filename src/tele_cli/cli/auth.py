@@ -114,14 +114,10 @@ def auth_list(ctx: typer.Context):
 
         session_info_list = []
         for session_name in session_name_list:
-            print("1", session_name)
             app = await TeleCLI.create(session_name=session_name, config=config)
-            print("2", session_name)
             session_info = await app.get_session_info()
-            print("3", session_name)
             if session_info is None:
                 continue
-            print("4", session_name)
             session_info_list.append(session_info)
 
         print(format_session_info_list(session_info_list, fmt=cli_args.fmt), fmt=cli_args.fmt)

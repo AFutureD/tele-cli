@@ -141,7 +141,7 @@ def _format_authorization_to_str(x: telethon.types.Authorization, max_hash_len: 
     is_current = x.current or False
     current = ">" if is_current else " "
 
-    date_active = arrow.get(x.date_active).humanize()
+    date_active = x.date_active and arrow.get(x.date_active).humanize()
 
     return f"{current} [{x.hash: <{max_hash_len}}] {date_active:14} {x.device_model: <{max_device_model_len}} - {x.app_name} {x.app_version} "
 
